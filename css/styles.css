@@ -117,12 +117,22 @@ a {
   pointer-events: none;
 }
 
-.art img {
+.art .layer {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
   transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* The Delphi plate has straight drawn edges. Clip the stack to them so the
+   depth layers can slide without their edges stepping out of line. */
+.art-delphi {
+  clip-path: inset(0 3.933% 9.88% 3.692%);
 }
 
 .nav {
@@ -589,7 +599,7 @@ a {
     inset: 0;
   }
 
-  .card-hero .art img {
+  .card-hero .art .layer {
     object-position: 28% 58%;
   }
 
@@ -748,7 +758,7 @@ a {
     inset: 0;
   }
 
-  .art img {
+  .art .layer {
     transform: none !important;
   }
 

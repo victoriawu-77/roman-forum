@@ -1,5 +1,6 @@
-/* Gold concept plates are the art. The supplied depth plates are a different
-   drawing, so this page drifts the full composites instead of stacking them. */
+/* Each gold plate is cut into depth layers (back to front: data-depth 0 to 1).
+   At rest every layer sits at 0, so the stack reads as the original plate.
+   Pointer and scroll move nearer layers further than far ones. */
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -178,94 +179,145 @@ function initVisit() {
 }
 
 function initParallax() {
-  if (reducedMotion.matches) return;
-
   const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
-  const cards = document.querySelectorAll("[data-parallax]");
-  const states = [];
+  const cards = Array.from(document.querySelectorAll("[data-parallax]"));
+  const states = cards.map((card) => ({
+    card,
+    mode: card.dataset.parallax,
+    layers: Array.from(card.querySelectorAll(".art .layer")).map((el) => ({
+      el,
+      depth: parseFloat(el.dataset.depth) || 0
+    })),
+    px: 0,
+    py: 0,
+    tx: 0,
+    ty: 0,
+    scroll: 0
+  }));
 
-  cards.forEach((card) => {
-    const img = card.querySelector(".art img");
-    states.push({
-      card,
-      img,
-      tx: 0,
-      ty: 0,
-      cx: 0,
-      cy: 0,
-      mx: 0,
-      my: 0
-    });
+  // Pointer reach as a share of the card, for the nearest layer.
+  const POINTER_X = { hero: 0.015, end: 0.01 };
+  const POINTER_Y = { hero: 0.008, end: 0.006 };
+  // Scroll reach as a share of the card height.
+  const SCROLL = { hero: 0.08, end: 0.055 };
 
-    if (finePointer.matches) {
-      card.addEventListener("pointermove", (event) => {
-        const rect = card.getBoundingClientRect();
-        const dx = (event.clientX - rect.left) / rect.width - 0.5;
-        const dy = (event.clientY - rect.top) / rect.height - 0.5;
-        const state = states.find((item) => item.card === card);
-        state.mx = dx * -14;
-        state.my = dy * -10;
-        kick();
-      });
-      card.addEventListener("pointerleave", () => {
-        const state = states.find((item) => item.card === card);
-        state.mx = 0;
-        state.my = 0;
-        kick();
-      });
-    }
-  });
-
-  function scrollTargets() {
+  function measureScroll() {
+    const vh = window.innerHeight || 1;
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - vh);
+    const y = window.scrollY || window.pageYOffset || 0;
     states.forEach((state) => {
       const rect = state.card.getBoundingClientRect();
-      const progress = (window.innerHeight * 0.5 - rect.top) / (window.innerHeight + rect.height);
-      state.ty = progress * 36;
+      if (state.mode === "end") {
+        // At rest once the page reaches its end; drifts while the plate rises into view.
+        state.scroll = Math.min(1, Math.max(0, (maxScroll - y) / vh));
+      } else {
+        // At rest at the top of the page; far layers lag as the plate scrolls away.
+        state.scroll = Math.min(1, Math.max(0, -rect.top / Math.max(rect.height, 1)));
+      }
+      state.h = rect.height;
+      state.w = rect.width;
+    });
+  }
+
+  function apply(state) {
+    const reach = SCROLL[state.mode] * (state.h || 0) * state.scroll;
+    state.layers.forEach(({ el, depth }) => {
+      let x = state.px * depth;
+      let y = state.py * depth;
+      if (state.mode === "end") y += reach * depth; // nearer layers lead
+      else y += reach * (1 - depth); // farther layers lag
+      el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+    });
+  }
+
+  function reset() {
+    states.forEach((state) => {
+      state.layers.forEach(({ el }) => {
+        el.style.transform = "none";
+      });
     });
   }
 
   let running = false;
   function frame() {
     if (reducedMotion.matches) {
-      states.forEach((state) => {
-        state.img.style.transform = "none";
-      });
+      reset();
       running = false;
       return;
     }
     let moving = false;
     states.forEach((state) => {
-      const targetX = state.mx;
-      const targetY = state.my + state.ty;
-      state.cx += (targetX - state.cx) * 0.08;
-      state.cy += (targetY - state.cy) * 0.08;
-      if (Math.abs(targetX - state.cx) > 0.05 || Math.abs(targetY - state.cy) > 0.05) {
-        moving = true;
+      state.px += (state.tx - state.px) * 0.09;
+      state.py += (state.ty - state.py) * 0.09;
+      if (Math.abs(state.tx - state.px) > 0.05 || Math.abs(state.ty - state.py) > 0.05) moving = true;
+      else {
+        state.px = state.tx;
+        state.py = state.ty;
       }
-      state.img.style.transform = `translate3d(${state.cx.toFixed(2)}px, ${state.cy.toFixed(2)}px, 0)`;
+      apply(state);
     });
     if (moving) requestAnimationFrame(frame);
     else running = false;
   }
 
   function kick() {
-    scrollTargets();
+    if (reducedMotion.matches) return;
     if (!running) {
       running = true;
       requestAnimationFrame(frame);
     }
   }
 
-  window.addEventListener("scroll", kick, { passive: true });
-  window.addEventListener("resize", kick);
-  kick();
+  function onScroll() {
+    if (reducedMotion.matches) return;
+    measureScroll();
+    kick();
+  }
 
-  reducedMotion.addEventListener("change", () => {
-    if (!reducedMotion.matches) return;
-    states.forEach((state) => {
-      state.img.style.transform = "none";
+  states.forEach((state) => {
+    state.card.addEventListener("pointermove", (event) => {
+      if (!finePointer.matches || event.pointerType === "touch") return;
+      const rect = state.card.getBoundingClientRect();
+      const dx = (event.clientX - rect.left) / rect.width - 0.5;
+      const dy = (event.clientY - rect.top) / rect.height - 0.5;
+      state.tx = dx * -2 * POINTER_X[state.mode] * rect.width;
+      state.ty = dy * -2 * POINTER_Y[state.mode] * rect.height;
+      kick();
+    });
+    state.card.addEventListener("pointerleave", () => {
+      state.tx = 0;
+      state.ty = 0;
+      kick();
     });
   });
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  window.addEventListener("load", onScroll);
+  reducedMotion.addEventListener("change", () => {
+    if (reducedMotion.matches) reset();
+    else onScroll();
+  });
+
+  if (reducedMotion.matches) reset();
+  else onScroll();
+
+  // Test hook: lets a screenshot script pin the pointer without real input.
+  window.__parallax = {
+    pointer(mode, dx, dy) {
+      states.forEach((state) => {
+        if (state.mode !== mode) return;
+        const rect = state.card.getBoundingClientRect();
+        state.tx = state.px = dx * -2 * POINTER_X[state.mode] * rect.width;
+        state.ty = state.py = dy * -2 * POINTER_Y[state.mode] * rect.height;
+        apply(state);
+      });
+    },
+    update() {
+      measureScroll();
+      states.forEach(apply);
+    }
+  };
 }
 
 initMenus();
