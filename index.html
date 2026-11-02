@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Roman Forum — Where History Still Speaks</title>
+  <meta name="description" content="A visitor introduction to the Roman Forum: the valley of ruins in Rome, and the terraced sanctuary of Apollo at Delphi.">
+  <meta name="theme-color" content="#050505">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+
+  <section class="screen hero" aria-label="Roman Forum">
+    <div class="card card-hero" data-parallax>
+      <div class="art">
+        <img src="assets/forum-hero.png" alt="" width="1246" height="700">
+      </div>
+
+      <header class="nav">
+        <a class="brand" href="#top">
+          <svg class="brand-mark" viewBox="0 0 44 36" aria-hidden="true">
+            <path d="M3 2.5h38M5 6.2h34" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="square"/>
+            <path d="M8 6.4C3.2 8.2 1.2 12 2.6 15.2c1.5 3.2 5.6 2.8 7.6-.2" fill="none" stroke="currentColor" stroke-width="1.35"/>
+            <path d="M36 6.4c4.8 1.8 6.8 5.6 5.4 8.8-1.5 3.2-5.6 2.8-7.6-.2" fill="none" stroke="currentColor" stroke-width="1.35"/>
+            <path d="M13 15.6h18M13 33.2h18M15.4 15.6v17.6M19.6 15.6v17.6M24.4 15.6v17.6M28.6 15.6v17.6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <span class="brand-name">Roman Forum</span>
+        </a>
+
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+          <span class="nav-toggle-label">Menu</span>
+        </button>
+
+        <nav class="nav-links" id="primary-nav" aria-label="Primary">
+          <div class="menu">
+            <button class="menu-button" type="button" aria-expanded="false" aria-controls="menu-explore">
+              Explore
+              <svg class="caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1.2 5 4.8 9 1.2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+            <div class="menu-panel" id="menu-explore" hidden>
+              <button type="button" data-note="floor">The Forum floor</button>
+              <button type="button" data-note="saturn">Temple of Saturn</button>
+              <button type="button" data-note="arch">Arch of Septimius Severus</button>
+              <button type="button" data-note="julia">Basilica Julia</button>
+            </div>
+          </div>
+          <button class="text-link" type="button" data-note="history">History</button>
+          <div class="menu">
+            <button class="menu-button" type="button" aria-expanded="false" aria-controls="menu-visit">
+              Visit
+              <svg class="caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1.2 5 4.8 9 1.2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+            <div class="menu-panel" id="menu-visit" hidden>
+              <button type="button" data-open-visit="hours">Hours</button>
+              <button type="button" data-open-visit="arrive">Getting there</button>
+              <button type="button" data-open-visit="request">Request a time</button>
+            </div>
+          </div>
+          <button class="text-link" type="button" data-note="about">About</button>
+          <button class="text-link plan-mobile" type="button" data-open-visit="request">Plan your visit</button>
+        </nav>
+
+        <button class="btn btn-line" type="button" data-open-visit="request">Plan your visit</button>
+      </header>
+
+      <div class="hero-copy" id="content">
+        <h1>Where History<br>Still Speaks.</h1>
+        <span class="rule" aria-hidden="true"></span>
+        <p class="lede">Step into the heart of ancient Rome. Explore timeless ruins, monumental architecture, and the stories that shaped our world.</p>
+        <a class="btn btn-fill" href="#delphi">Explore the Forum <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen delphi" id="delphi" aria-labelledby="delphi-title">
+    <div class="card card-delphi" data-parallax>
+      <div class="art">
+        <img src="assets/delphi.png" alt="Steel-pen drawing of the sanctuary of Apollo at Delphi: the temple on stone terraces above a mountain valley, with cypresses, an olive tree, and a stair climbing the slope." width="1246" height="830">
+      </div>
+    </div>
+    <footer class="colophon">
+      <h2 id="delphi-title">Sanctuary of Apollo, Delphi</h2>
+      <p>The same road of stone, imagined onward: from the Forum valley to the terraces above the Pleistos.</p>
+      <p class="colophon-meta">
+        <button type="button" data-open-visit="request">Plan your visit</button>
+        <a href="#top">Back to the Forum</a>
+      </p>
+    </footer>
+  </section>
+
+  <dialog class="sheet" id="note-dialog" aria-labelledby="note-title">
+    <form method="dialog">
+      <button class="sheet-close" type="submit" aria-label="Close">Close</button>
+    </form>
+    <h2 id="note-title"></h2>
+    <p id="note-body"></p>
+  </dialog>
+
+  <dialog class="sheet sheet-visit" id="visit-dialog" aria-labelledby="visit-title">
+    <form method="dialog">
+      <button class="sheet-close" type="submit" aria-label="Close">Close</button>
+    </form>
+    <p class="eyebrow">Visitor desk</p>
+    <h2 id="visit-title">Plan your visit</h2>
+    <p class="sheet-lead">The Roman Forum is part of the Colosseum archaeological park. Hours shift with the season — confirm the day you go.</p>
+
+    <div class="visit-grid">
+      <section id="visit-hours">
+        <h3>Typical hours</h3>
+        <dl>
+          <div><dt>30 Mar – 30 Sep</dt><dd>9:00–19:15</dd></div>
+          <div><dt>1–26 Oct</dt><dd>9:00–18:30</dd></div>
+          <div><dt>27 Oct – 29 Mar</dt><dd>8:30–16:30</dd></div>
+        </dl>
+        <p class="fine">Closed 1 January and 25 December. Last entry is about an hour before closing.</p>
+      </section>
+      <section id="visit-arrive">
+        <h3>Getting there</h3>
+        <p>Via della Salara Vecchia, 00186 Rome. Metro line B to Colosseo, then the short walk down into the valley. The Forum entrance is shared with the park ticket.</p>
+      </section>
+    </div>
+
+    <form class="request" id="visit-form" novalidate>
+      <h3 id="visit-request">Request a time</h3>
+      <p class="fine">This demo keeps the request on this page. Nothing is sent to a server.</p>
+      <div class="fields">
+        <label>Name
+          <input name="name" type="text" autocomplete="name" required>
+        </label>
+        <label>Email
+          <input name="email" type="email" autocomplete="email" required>
+        </label>
+        <label>Date
+          <input name="date" type="date" required>
+        </label>
+        <label>Party
+          <select name="party" required>
+            <option value="">Select</option>
+            <option>1</option>
+            <option>2</option>
+            <option>3–4</option>
+            <option>5–8</option>
+            <option>9 or more</option>
+          </select>
+        </label>
+      </div>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+      <button class="btn btn-fill" type="submit">Request a time</button>
+    </form>
+
+    <div class="request-success" id="request-success" hidden>
+      <h3>Request noted</h3>
+      <p id="success-copy"></p>
+      <button class="btn btn-line" type="button" id="request-reset">Write another</button>
+    </div>
+  </dialog>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
