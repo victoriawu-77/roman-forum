@@ -38,7 +38,7 @@ html {
 
 body {
   margin: 0;
-  background: var(--night);
+  background: var(--paper-bright);
   color: var(--ink);
   font-family: var(--serif);
   font-optical-sizing: auto;
@@ -82,32 +82,30 @@ a {
 }
 
 .screen {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  display: block;
+  margin: 0;
+  padding: 0;
 }
 
+/* Both drawings run edge to edge: no frame, no rounded card. */
 .card {
   position: relative;
   container-type: inline-size;
   overflow: hidden;
+  width: 100%;
   background: var(--paper-bright);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
 }
 
 .card-hero {
-  width: min(1246px, 100%, calc((100dvh - 56px) * 1.78));
-  aspect-ratio: 1246 / 700;
+  height: 100vh;
+  height: 100svh;
+  min-height: 420px;
 }
 
+/* The Delphi card shows the drawn plate (1151 x 748 of the 1246 x 830
+   source) across the full width. */
 .card-delphi {
-  width: min(1100px, 100%, calc((100dvh - 168px) * 1.501));
-  aspect-ratio: 1246 / 830;
+  aspect-ratio: 1151 / 748;
 }
 
 .art {
@@ -117,7 +115,8 @@ a {
   pointer-events: none;
 }
 
-.art .layer {
+.art .layer,
+.art .poster {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -125,14 +124,42 @@ a {
   object-fit: cover;
   display: block;
   transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
 }
 
-/* The Delphi plate has straight drawn edges. Clip the stack to them so the
-   depth layers can slide without their edges stepping out of line. */
-.art-delphi {
-  clip-path: inset(0 3.933% 9.88% 3.692%);
+/* Keep the overscan small so the edge columns stay in frame on laptop
+   screens, and lean the crop right so the free-standing column survives. */
+.card-hero .art {
+  inset: -1.2% -1.8%;
+}
+
+.card-hero .art .layer,
+.card-hero .art .poster {
+  object-position: 60% 50%;
+}
+
+/* The flat drawing covers the layers until every layer has decoded, so a
+   slow or failed layer can never leave a half-drawn picture. */
+.art .poster {
+  z-index: 1;
+  transform: none;
+  transition: opacity 0.45s ease;
+}
+
+.art.is-ready .poster {
+  opacity: 0;
+}
+
+.art.is-ready .layer {
+  will-change: transform;
+}
+
+/* Place the source so that its drawn plate fills the card; the rest of the
+   source (repeated line work) only shows while the layers move. */
+.art.art-delphi {
+  top: 0;
+  left: -3.997%;
+  right: -4.257%;
+  bottom: -10.963%;
 }
 
 .nav {
@@ -350,10 +377,10 @@ a {
 }
 
 .colophon {
-  width: min(1100px, 100%);
-  margin-top: 16px;
+  padding: 28px max(20px, env(safe-area-inset-right)) max(36px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   text-align: center;
-  color: var(--paper);
+  color: var(--ink);
+  background: var(--paper-bright);
 }
 
 .colophon h2 {
@@ -368,7 +395,7 @@ a {
   max-width: 38rem;
   font-size: 0.98rem;
   line-height: 1.45;
-  color: rgba(243, 237, 226, 0.82);
+  color: rgba(27, 58, 107, 0.82);
 }
 
 .colophon-meta {
@@ -385,7 +412,7 @@ a {
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--paper);
+  color: var(--ink);
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -393,7 +420,7 @@ a {
 
 .colophon-meta button:hover,
 .colophon-meta a:hover {
-  color: #fff;
+  color: var(--ink-deep);
 }
 
 .sheet {
@@ -575,31 +602,12 @@ a {
 }
 
 @media (max-width: 860px) {
-  .screen {
-    padding: 10px;
-    justify-content: flex-start;
-  }
-
-  .delphi {
-    justify-content: center;
-  }
-
-  .card {
-    border-radius: 16px;
-  }
-
-  .card-hero {
-    width: 100%;
-    aspect-ratio: auto;
-    min-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  }
-
   .card-hero .art {
     inset: 0;
   }
 
-  .card-hero .art .layer {
+  .card-hero .art .layer,
+  .card-hero .art .poster {
     object-position: 28% 58%;
   }
 
@@ -608,7 +616,7 @@ a {
     left: 0;
     right: 0;
     height: auto;
-    padding: 12px 14px;
+    padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 12px max(14px, env(safe-area-inset-left));
     grid-template-columns: 1fr auto;
     background: linear-gradient(to bottom, rgba(251, 244, 235, 0.94), rgba(251, 244, 235, 0.78) 70%, rgba(251, 244, 235, 0));
   }
@@ -727,12 +735,6 @@ a {
     padding: 0.95em 1.2em;
   }
 
-  .card-delphi {
-    width: 100%;
-    margin-top: 8px;
-    max-height: none;
-  }
-
   .visit-grid,
   .fields {
     grid-template-columns: 1fr;
@@ -754,7 +756,7 @@ a {
     scroll-behavior: auto;
   }
 
-  .art {
+  .card-hero .art {
     inset: 0;
   }
 

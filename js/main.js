@@ -192,8 +192,42 @@ function initParallax() {
     py: 0,
     tx: 0,
     ty: 0,
-    scroll: 0
+    scroll: 0,
+    ready: false
   }));
+
+  // Wait until every layer of a card has loaded and decoded, then fade out the
+  // flat drawing on top. Until then the layers stay still under it. If any
+  // layer fails, the flat drawing simply stays.
+  function whenDecoded(img) {
+    const loaded = img.complete && img.naturalWidth > 0
+      ? Promise.resolve()
+      : new Promise((resolve, reject) => {
+          img.addEventListener("load", resolve, { once: true });
+          img.addEventListener("error", reject, { once: true });
+        });
+    return loaded.then(() =>
+      typeof img.decode === "function"
+        ? img.decode().catch(() => {
+            if (!img.naturalWidth) throw new Error("layer did not decode");
+          })
+        : undefined
+    );
+  }
+
+  states.forEach((state) => {
+    const art = state.card.querySelector(".art");
+    Promise.all(state.layers.map(({ el }) => whenDecoded(el)))
+      .then(() => {
+        state.ready = true;
+        art.classList.add("is-ready");
+        measureScroll();
+        apply(state);
+      })
+      .catch(() => {
+        state.ready = false;
+      });
+  });
 
   // Pointer reach as a share of the card, for the nearest layer.
   const POINTER_X = { hero: 0.015, end: 0.01 };
@@ -220,6 +254,7 @@ function initParallax() {
   }
 
   function apply(state) {
+    if (!state.ready) return;
     const reach = SCROLL[state.mode] * (state.h || 0) * state.scroll;
     state.layers.forEach(({ el, depth }) => {
       let x = state.px * depth;

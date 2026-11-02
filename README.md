@@ -2,7 +2,7 @@
 
 A single-page landing in blue steel-pen style. The first screen is the Roman Forum. The second is the sanctuary of Apollo at Delphi.
 
-Ink is `#1B3A6B`. Paper is `#F3EDE2`. Navigation, the headline, and the visit button are real HTML over the drawing.
+Ink is `#1B3A6B`. Paper is `#F3EDE2`. Both drawings run full-bleed, edge to edge. Navigation, the headline, and the visit button are real HTML over the drawing.
 
 ## Open locally
 
@@ -24,6 +24,8 @@ Each drawing is cut into four depth layers (`assets/layers/*.webp`), stacked so 
 - Delphi: sky and far ranges, the cliffs, the sanctuary terraces, then the olive tree and the near slope.
 
 On desktop, nearer layers move further with the pointer. On every device, including iPhone Safari, the layers also move at different rates on scroll. On the Forum, far layers lag as the page scrolls away. On Delphi, the layers settle into place as you reach the end of the page.
+
+Each card also carries a flat copy of the full drawing (`assets/layers/*-flat.jpg`) on top of the layers. It fades out only once every layer has loaded and decoded, so a slow connection or a failed layer shows the whole drawing, never a half-built stack.
 
 Where a nearer layer used to hide part of a farther one, the gap is filled with line work taken from the surrounding drawing.
 
