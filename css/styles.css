@@ -177,41 +177,41 @@ a {
   touch-action: pan-y;
 }
 
-.tilt-pill {
+/* A one-time hint on phones that need a tap before the gyroscope can be
+   read (iOS). It never takes taps and fades once tilting works. */
+.tilt-hint {
   position: absolute;
   z-index: 4;
+  margin: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.5em;
-  min-height: 34px;
-  padding: 0 0.95em 0 0.75em;
-  border: 1px solid var(--ink);
-  border-radius: 999px;
-  background: rgba(251, 244, 235, 0.86);
+  gap: 0.45em;
   color: var(--ink);
+  opacity: 0.62;
   font-family: var(--sans);
-  font-size: 0.66rem;
+  font-size: 0.6rem;
   font-weight: 500;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
-  right: max(14px, env(safe-area-inset-right));
-  top: calc(max(12px, env(safe-area-inset-top)) + 58px);
+  pointer-events: none;
+  right: max(16px, env(safe-area-inset-right));
+  top: calc(max(12px, env(safe-area-inset-top)) + 62px);
+  transition: opacity 0.6s ease;
 }
 
-.tilt-pill[hidden] {
+.tilt-hint[hidden] {
   display: none;
 }
 
-.tilt-pill svg {
-  width: 15px;
-  height: 15px;
-  display: block;
+.tilt-hint.is-done {
+  opacity: 0;
 }
 
-.tilt-pill:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+.tilt-hint svg {
+  width: 13px;
+  height: 13px;
+  display: block;
 }
 
 /* The flat drawing covers the layers until every layer has decoded, so a
@@ -847,7 +847,7 @@ a {
     transition: none;
   }
 
-  .tilt-pill {
+  .tilt-hint {
     display: none;
   }
 }

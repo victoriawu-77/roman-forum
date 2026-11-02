@@ -418,14 +418,23 @@ function initParallax() {
     });
   });
 
-  // Touch and tilt (hero only). Reach is a share of the card for the
-  // nearest layer; travel is clamped so the padding always covers it.
+  // Touch screens. Reach is a share of the card for the nearest layer;
+  // travel is clamped so the padding always covers it.
   const TOUCH_X = 0.12;
   const TOUCH_Y = 0.022;
+  // Gyroscope: full tilt (TILT_RANGE degrees from the resting angle) moves the
+  // nearest layer about as far as the pointer does at a card corner on a
+  // desktop, a little more sideways because phones are narrow.
+  const TILT_X = { hero: 0.1, end: 0.07 };
+  const TILT_Y = { hero: 0.035, end: 0.025 };
+  const TILT_RANGE = 20; // degrees
+  const TILT_RECENTER = 5; // seconds for the resting angle to follow the hand
   const hero = states.find((state) => state.mode === "hero");
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   let dragging = false;
-  const tilt = { on: false, x: 0, y: 0, g0: null, b0: null };
+  // listening: handler attached; active: real readings are arriving, so the
+  // gyroscope drives the parallax and finger drags are off.
+  const tilt = { listening: false, active: false, x: 0, y: 0, n0: null, last: 0, events: 0, permission: "n/a" };
 
   function setTouchTarget(nx, ny) {
     // nx, ny in -1..1
@@ -437,18 +446,18 @@ function initParallax() {
   }
 
   if (hero) {
-    // Horizontal finger drags move the layers. The card is touch-action: pan-y,
-    // so the browser keeps vertical scrolling; a drag that turns out to be
-    // mostly vertical is ignored.
+    // Horizontal finger drags move the layers when there is no gyroscope.
+    // The card is touch-action: pan-y, so the browser keeps vertical
+    // scrolling; a drag that turns out to be mostly vertical is ignored.
     let start = null;
     let axis = null;
     hero.card.addEventListener("pointerdown", (event) => {
-      if (event.pointerType !== "touch" || reducedMotion.matches) return;
+      if (event.pointerType !== "touch" || reducedMotion.matches || tilt.active) return;
       start = { x: event.clientX, y: event.clientY };
       axis = null;
     });
     hero.card.addEventListener("pointermove", (event) => {
-      if (event.pointerType !== "touch" || !start) return;
+      if (event.pointerType !== "touch" || !start || tilt.active) return;
       const dx = event.clientX - start.x;
       const dy = event.clientY - start.y;
       if (!axis) {
@@ -467,61 +476,149 @@ function initParallax() {
       axis = null;
       if (!dragging) return;
       dragging = false;
-      if (tilt.on) setTouchTarget(-tilt.x, -tilt.y);
-      else setTouchTarget(0, 0); // eases back to rest through the frame lerp
+      if (!tilt.active) setTouchTarget(0, 0); // eases back to rest through the frame lerp
     };
     hero.card.addEventListener("pointerup", endDrag);
     hero.card.addEventListener("pointercancel", endDrag);
   }
 
+  // Signed difference of two angles, in -180..180.
+  const angleDiff = (a, b) => ((((a - b) % 360) + 540) % 360) - 180;
+
+  function screenAngle() {
+    // window.orientation is what iOS and Android phones report most
+    // reliably; screen.orientation is the standard fallback.
+    if (typeof window.orientation === "number") return window.orientation;
+    const so = window.screen && window.screen.orientation;
+    if (so && typeof so.angle === "number") return so.angle;
+    return 0;
+  }
+
   function onOrientation(event) {
     if (event.gamma == null || event.beta == null || reducedMotion.matches) return;
-    // Readings are arriving, so no permission step is needed (or it was granted).
-    if (pill && !pill.hidden) pill.hidden = true;
-    // The first reading is the neutral pose; travel is relative to it.
-    if (tilt.g0 === null) {
-      tilt.g0 = event.gamma;
-      tilt.b0 = event.beta;
+    const now = performance.now();
+    const dt = tilt.last ? Math.min(0.25, (now - tilt.last) / 1000) : 0;
+    tilt.last = now;
+    tilt.events += 1;
+    if (!tilt.active) {
+      tilt.active = true;
+      dragging = false;
+      document.documentElement.classList.add("has-tilt");
     }
-    const rawX = clamp((event.gamma - tilt.g0) / 20, -1, 1);
-    const rawY = clamp((event.beta - tilt.b0) / 20, -1, 1);
-    // Low-pass the sensor before the frame lerp smooths it again.
-    tilt.x += (rawX - tilt.x) * 0.25;
-    tilt.y += (rawY - tilt.y) * 0.25;
-    if (!dragging) setTouchTarget(-tilt.x, -tilt.y);
+    hideHint();
+    // Turn the device angles into screen axes: x is left-right across the
+    // screen as it is held now, y is toward and away from the viewer.
+    const angle = ((Math.round(screenAngle() / 90) * 90) % 360 + 360) % 360;
+    let ax = event.gamma;
+    let ay = event.beta;
+    if (angle === 90) {
+      ax = event.beta;
+      ay = -event.gamma;
+    } else if (angle === 270) {
+      ax = -event.beta;
+      ay = event.gamma;
+    } else if (angle === 180) {
+      ax = -event.gamma;
+      ay = -event.beta;
+    }
+    // The first reading is the resting angle. It then slowly follows the
+    // hand, so the phone can be held at any angle and drifts back to centre.
+    if (tilt.n0 === null || tilt.n0.angle !== angle) tilt.n0 = { x: ax, y: ay, angle };
+    else {
+      const k = Math.min(1, dt / TILT_RECENTER);
+      tilt.n0.x += angleDiff(ax, tilt.n0.x) * k;
+      tilt.n0.y += angleDiff(ay, tilt.n0.y) * k;
+    }
+    const rawX = clamp(angleDiff(ax, tilt.n0.x) / TILT_RANGE, -1, 1);
+    const rawY = clamp(angleDiff(ay, tilt.n0.y) / TILT_RANGE, -1, 1);
+    // Low-pass the sensor; the frame lerp smooths it again.
+    tilt.x += (rawX - tilt.x) * 0.3;
+    tilt.y += (rawY - tilt.y) * 0.3;
+    // Tilting the right edge down shows more of the right side: the near
+    // layers move left, as with a pointer moving right.
+    states.forEach((state) => {
+      state.tx = -tilt.x * TILT_X[state.mode] * (state.w || state.card.clientWidth);
+      state.ty = -tilt.y * TILT_Y[state.mode] * (state.h || state.card.clientHeight);
+    });
+    kick();
   }
 
-  function startTilt() {
-    if (tilt.on) return;
-    tilt.on = true;
+  function listenTilt(onSilence) {
+    if (tilt.listening) return;
+    tilt.listening = true;
     window.addEventListener("deviceorientation", onOrientation);
+    // No readings within about a second (no gyroscope, not allowed yet, or
+    // blocked): finger drags and scrolling keep driving the parallax.
+    window.setTimeout(() => {
+      if (tilt.active) return;
+      stopTilt();
+      if (onSilence) onSilence();
+    }, 1000);
   }
 
-  const pill = document.querySelector(".tilt-pill");
+  function stopTilt() {
+    window.removeEventListener("deviceorientation", onOrientation);
+    tilt.listening = false;
+    tilt.active = false;
+    document.documentElement.classList.remove("has-tilt");
+  }
+
+  const hint = document.querySelector(".tilt-hint");
+  function hideHint() {
+    if (!hint || hint.hidden || hint.classList.contains("is-done")) return;
+    hint.classList.add("is-done");
+    window.setTimeout(() => {
+      hint.hidden = true;
+    }, 700);
+  }
+
   const coarse = window.matchMedia("(pointer: coarse)");
-  if (hero && "DeviceOrientationEvent" in window && coarse.matches && !reducedMotion.matches) {
-    // Listen straight away: browsers that need no permission (Android) start
-    // sending readings; iOS sends nothing until the pill is tapped.
-    startTilt();
-    if (typeof DeviceOrientationEvent.requestPermission === "function") {
-      // iOS: permission must come from a tap.
-      if (pill) {
-        pill.hidden = false;
-        pill.addEventListener("click", () => {
-          DeviceOrientationEvent.requestPermission()
-            .then((answer) => {
-              if (answer !== "granted") {
-                window.removeEventListener("deviceorientation", onOrientation);
-                tilt.on = false;
-              }
-            })
-            .catch(() => {})
-            .finally(() => {
-              pill.hidden = true;
-            });
-        });
+  if (states.length && "DeviceOrientationEvent" in window && coarse.matches && !reducedMotion.matches) {
+    const D = window.DeviceOrientationEvent;
+    // Listen straight away: Android and other browsers that need no
+    // permission start sending readings, and nothing else is shown.
+    listenTilt(() => {
+      // Silent. iOS 13+ sends nothing until the page asks, and the request
+      // must come from a tap: the first tap anywhere on the page asks. The
+      // listeners are passive, so they never delay scrolling or the tap's
+      // own action.
+      if (typeof D.requestPermission !== "function") return;
+      tilt.permission = "pending";
+      if (hint) hint.hidden = false;
+      let asking = false;
+      const removeAsk = () => {
+        document.removeEventListener("touchend", ask, true);
+        document.removeEventListener("click", ask, true);
+      };
+      function ask() {
+        if (asking || tilt.permission !== "pending") return;
+        asking = true;
+        let request;
+        try {
+          request = D.requestPermission();
+        } catch (error) {
+          request = Promise.reject(error);
+        }
+        Promise.resolve(request)
+          .then((answer) => {
+            tilt.permission = answer;
+            removeAsk();
+            if (answer === "granted") listenTilt(hideHint);
+            else hideHint();
+          })
+          .catch(() => {
+            // Not counted as a tap (for example the end of a scroll): the
+            // next tap asks again.
+          })
+          .finally(() => {
+            asking = false;
+          });
       }
-    }
+      // touchend and click carry the user activation Safari needs; touchstart
+      // does not.
+      document.addEventListener("touchend", ask, { capture: true, passive: true });
+      document.addEventListener("click", ask, { capture: true, passive: true });
+    });
   }
 
   /* ---------------------------------------------------------------------
@@ -1014,7 +1111,7 @@ function initParallax() {
     state(mode) {
       const st = states.find((x) => x.mode === mode);
       return st && {
-        tx: st.tx, ty: st.ty, px: st.px, py: st.py, ready: st.ready, tilt: tilt.on, dragging,
+        tx: st.tx, ty: st.ty, px: st.px, py: st.py, ready: st.ready, tilt: { active: tilt.active, listening: tilt.listening, permission: tilt.permission, x: tilt.x, y: tilt.y, events: tilt.events, n0: tilt.n0 }, dragging,
         geo: st.geo, birds: st.birds && st.birds.length,
         flock: st.birds && st.birds.map((b) => ({ x: b.x, y: b.y, span: b.span, depth: b.depth })),
         view: st.view,
