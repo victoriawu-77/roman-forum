@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Source Serif 4";
-  src: url("../assets/fonts/SourceSerif4.ttf?v=9") format("truetype");
+  src: url("../assets/fonts/SourceSerif4.ttf?v=10") format("truetype");
   font-weight: 200 900;
   font-style: normal;
   font-display: swap;
@@ -8,7 +8,7 @@
 
 @font-face {
   font-family: "Outfit";
-  src: url("../assets/fonts/Outfit.ttf?v=9") format("truetype");
+  src: url("../assets/fonts/Outfit.ttf?v=10") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -420,6 +420,24 @@ a {
   width: 34%;
 }
 
+/* Paper under Forum headline only (v7 left scene is ink-filled; void is CSS). */
+.hero-copy::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -1.1cqi -1.35cqi -1.6cqi -1.1cqi;
+  background: var(--paper); /* #f3ede2 */
+  border-radius: 0.35cqi;
+  /* Soft right/bottom fade so the block stays under text, not a hard card over art */
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 78%, transparent 100%),
+                      linear-gradient(180deg, transparent 0%, #000 8%, #000 90%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, #000 0%, #000 78%, transparent 100%),
+              linear-gradient(180deg, transparent 0%, #000 8%, #000 90%, transparent 100%);
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
 .hero-copy h1 {
   margin: 0;
   font-weight: 450;
@@ -786,8 +804,15 @@ a {
     content: "";
     position: absolute;
     z-index: -1;
-    inset: -18% -8% -22%;
-    background: radial-gradient(ellipse at 20% 40%, rgba(251, 244, 235, 0.92), rgba(251, 244, 235, 0.55) 55%, rgba(251, 244, 235, 0) 78%);
+    inset: -18% -8% -22% -6%;
+    background: radial-gradient(ellipse at 22% 40%,
+      rgba(243, 237, 226, 1) 0%,
+      rgba(243, 237, 226, 0.96) 48%,
+      rgba(243, 237, 226, 0.55) 70%,
+      rgba(243, 237, 226, 0) 82%);
+    border-radius: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   .hero-copy h1 {
