@@ -190,7 +190,7 @@ function initParallax() {
       poster: art.querySelector(".poster"),
       sky: art.querySelector(".sky"),
       source: nums(art.dataset.source, "1246 700"),
-      pad: nums(art.dataset.pad, "0 0 0 0"),
+      plate: null,
       mode: card.dataset.parallax,
       layers: Array.from(art.querySelectorAll(".layer")).map((el) => ({
         el,
@@ -206,6 +206,20 @@ function initParallax() {
     };
   });
 
+  states.forEach((state) => {
+    const [sw, sh] = state.source;
+    state.plate = nums(state.art.dataset.plate, `0 0 ${sw} ${sh}`);
+  });
+
+  // Touch screens. Reach is a share of the card for the nearest layer;
+  // travel is clamped so the padding always covers it.
+  const TOUCH_X = 0.12;
+  const TOUCH_Y = 0.022;
+  // Gyroscope: full tilt (TILT_RANGE degrees from the resting angle) moves the
+  // nearest layer about as far as the pointer does at a card corner on a
+  // desktop, a little more sideways because phones are narrow.
+  const TILT_X = { hero: 0.1, end: 0.07 };
+  const TILT_Y = { hero: 0.035, end: 0.025 };
   // Pointer reach as a share of the card, for the nearest layer.
   const POINTER_X = { hero: 0.04, end: 0.026 };
   const POINTER_Y = { hero: 0.02, end: 0.014 };
@@ -214,9 +228,13 @@ function initParallax() {
   // Nearer layers swell a little as the hero scrolls away.
   const SCROLL_SCALE = 0.045;
 
-  // Place each padded layer so that the plate inside it sits exactly where
-  // the flat drawing (object-fit: cover) sits, and work out how far each edge
-  // of the padding reaches past the card, which caps the travel.
+  // Safe zone. Every layer (and the flat drawing) is drawn a little larger
+  // than the card: one uniform zoom, chosen per card and per screen from how
+  // far the nearest layer can travel there, plus a small fixed margin. The
+  // drawn plate (data-plate, in source pixels; the source may carry a paper
+  // margin around it) always covers the card, and offsetAt() clamps every
+  // move so no edge of the plate can ever enter the card.
+  const SAFE_MIN = 0.02; // fixed margin per side, as a share of the card
   function objectPosition(el) {
     const parts = getComputedStyle(el).objectPosition.split(/\s+/);
     const read = (part) => {
@@ -229,41 +247,49 @@ function initParallax() {
     return [read(parts[0]), read(parts[1])];
   }
 
-  function layout(state) {
-    const bw = state.art.clientWidth;
-    const bh = state.art.clientHeight;
-    if (!bw || !bh) return;
+  // Largest offset the nearest layer is asked for on this kind of screen,
+  // as a share of the card width and height.
+  function reach(state) {
+    const touch = !finePointer.matches;
+    const m = state.mode;
+    const rx = touch ? Math.max(TILT_X[m], m === "hero" ? TOUCH_X : 0) : POINTER_X[m];
+    const ry = touch ? Math.max(TILT_Y[m], m === "hero" ? TOUCH_Y : 0) : POINTER_Y[m];
+    return [rx + SAFE_MIN, ry + SAFE_MIN];
+  }
+
+  function layout(state, early) {
+    const cw = state.card.clientWidth;
+    const ch = state.card.clientHeight;
+    if (!cw || !ch) return;
     const [sw, sh] = state.source;
-    const [pl, pt, pr, pb] = state.pad;
-    const s = Math.max(bw / sw, bh / sh);
+    const [px0, py0, px1, py1] = state.plate;
+    const pw = px1 - px0;
+    const ph = py1 - py0;
+    const [rx, ry] = reach(state);
+    // Uniform zoom: the plate covers the card plus the travel on every side.
+    const s = Math.max((cw * (1 + 2 * rx)) / pw, (ch * (1 + 2 * ry)) / ph);
     const [fx, fy] = objectPosition(state.poster);
-    const ox = (bw - sw * s) * fx; // plate origin inside the art box
-    const oy = (bh - sh * s) * fy;
-    const left = ox - pl * s;
-    const top = oy - pt * s;
-    const width = (sw + pl + pr) * s;
-    const height = (sh + pt + pb) * s;
-    state.layers.forEach(({ el }) => {
+    const plx = (cw - pw * s) * fx; // plate origin inside the card
+    const ply = (ch - ph * s) * fy;
+    const left = plx - px0 * s; // source image origin inside the card
+    const top = ply - py0 * s;
+    const width = sw * s;
+    const height = sh * s;
+    const origin = `${(cw / 2 - left).toFixed(2)}px ${(ch / 2 - top).toFixed(2)}px`;
+    [state.poster, ...state.layers.map(({ el }) => el)].forEach((el) => {
       el.style.left = left.toFixed(2) + "px";
       el.style.top = top.toFixed(2) + "px";
       el.style.width = width.toFixed(2) + "px";
       el.style.height = height.toFixed(2) + "px";
-      el.style.transformOrigin = `${(bw / 2 - left).toFixed(2)}px ${(bh / 2 - top).toFixed(2)}px`;
+      el.style.transformOrigin = origin;
     });
-    // Art box position inside the card (the art overscans the card).
-    const ax = state.art.offsetLeft;
-    const ay = state.art.offsetTop;
-    const cw = state.card.clientWidth;
-    const ch = state.card.clientHeight;
     state.geo = {
-      s, ox, oy, bw, bh, ax, ay, cw, ch,
-      // Room left before an edge of the padded layer would enter the card.
-      roomL: Math.max(0, -(ax + left)),
-      roomR: Math.max(0, ax + left + width - cw),
-      roomT: Math.max(0, -(ay + top)),
-      roomB: Math.max(0, ay + top + height - ch)
+      s, ox: left, oy: top, bw: cw, bh: ch, ax: 0, ay: 0, cw, ch,
+      // Plate edges in card pixels, at rest.
+      pl: plx, pt: ply, pr: plx + pw * s, pb: ply + ph * s,
+      roomL: -plx, roomR: plx + pw * s - cw, roomT: -ply, roomB: ply + ph * s - ch
     };
-    if (state.sky) sizeSky(state);
+    if (state.sky && !early) sizeSky(state);
   }
 
   // Wait until every layer of a card has loaded and decoded, then fade out the
@@ -284,6 +310,9 @@ function initParallax() {
         : undefined
     );
   }
+
+  // Size the art before it decodes (the sky waits: its setup comes later).
+  states.forEach((state) => layout(state, true));
 
   states.forEach((state) => {
     Promise.all(state.layers.map(({ el }) => whenDecoded(el)))
@@ -333,10 +362,17 @@ function initParallax() {
     }
     const g = state.geo;
     if (g) {
-      // Never let a padded edge into the card.
-      const grow = (scale - 1) / 2;
-      x = Math.min(g.roomL + grow * g.bw - 1, Math.max(-(g.roomR + grow * g.bw - 1), x));
-      y = Math.min(g.roomT + grow * g.bh - 1, Math.max(-(g.roomB + grow * g.bh - 1), y));
+      // Never let an edge of the plate into the card: after scaling about
+      // the card centre and moving, the plate must still reach past every
+      // side by at least a pixel.
+      const cx = g.cw / 2;
+      const cy = g.ch / 2;
+      const xMax = -1 - cx - (g.pl - cx) * scale;
+      const xMin = g.cw + 1 - cx - (g.pr - cx) * scale;
+      const yMax = -1 - cy - (g.pt - cy) * scale;
+      const yMin = g.ch + 1 - cy - (g.pb - cy) * scale;
+      x = xMin > xMax ? (xMin + xMax) / 2 : Math.min(xMax, Math.max(xMin, x));
+      y = yMin > yMax ? (yMin + yMax) / 2 : Math.min(yMax, Math.max(yMin, y));
     }
     return { x, y, scale };
   }
@@ -394,7 +430,7 @@ function initParallax() {
   }
 
   function onResize() {
-    states.forEach(layout);
+    states.forEach((state) => layout(state));
     measureScroll();
     if (reducedMotion.matches) reset();
     else states.forEach(apply);
@@ -418,15 +454,6 @@ function initParallax() {
     });
   });
 
-  // Touch screens. Reach is a share of the card for the nearest layer;
-  // travel is clamped so the padding always covers it.
-  const TOUCH_X = 0.12;
-  const TOUCH_Y = 0.022;
-  // Gyroscope: full tilt (TILT_RANGE degrees from the resting angle) moves the
-  // nearest layer about as far as the pointer does at a card corner on a
-  // desktop, a little more sideways because phones are narrow.
-  const TILT_X = { hero: 0.1, end: 0.07 };
-  const TILT_Y = { hero: 0.035, end: 0.025 };
   const TILT_RANGE = 20; // degrees
   const TILT_RECENTER = 5; // seconds for the resting angle to follow the hand
   const hero = states.find((state) => state.mode === "hero");

@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Source Serif 4";
-  src: url("../assets/fonts/SourceSerif4.ttf?v=10") format("truetype");
+  src: url("../assets/fonts/SourceSerif4.ttf?v=12") format("truetype");
   font-weight: 200 900;
   font-style: normal;
   font-display: swap;
@@ -8,7 +8,7 @@
 
 @font-face {
   font-family: "Outfit";
-  src: url("../assets/fonts/Outfit.ttf?v=10") format("truetype");
+  src: url("../assets/fonts/Outfit.ttf?v=12") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -108,9 +108,12 @@ a {
   aspect-ratio: 1151 / 748;
 }
 
+/* The art box is the card. Script draws every layer and the flat drawing
+   a little larger than it (the safe zone), so moving layers never show an
+   edge. */
 .art {
   position: absolute;
-  inset: -3.4%;
+  inset: 0;
   z-index: 0;
   pointer-events: none;
 }
@@ -120,6 +123,7 @@ a {
   inset: 0;
   width: 100%;
   height: 100%;
+  max-width: none;
   object-fit: cover;
   display: block;
 }
@@ -147,12 +151,7 @@ a {
   display: block;
 }
 
-/* Keep the overscan small so the edge columns stay in frame on laptop
-   screens, and lean the crop right so the free-standing column survives. */
-.card-hero .art {
-  inset: -1.2% -1.8%;
-}
-
+/* Lean the crop right so the free-standing column survives. */
 .card-hero .art .layer,
 .card-hero .art .poster {
   object-position: 60% 50%;
@@ -228,15 +227,6 @@ a {
 
 .art.is-ready .layer {
   will-change: transform;
-}
-
-/* Place the source so that its drawn plate fills the card; the rest of the
-   source (repeated line work) only shows while the layers move. */
-.art.art-delphi {
-  top: 0;
-  left: -3.997%;
-  right: -4.257%;
-  bottom: -10.963%;
 }
 
 .nav {
@@ -697,11 +687,6 @@ a {
 }
 
 @media (max-width: 860px) {
-  /* Side overscan covers touch and tilt travel. */
-  .card-hero .art {
-    inset: -1% -6%;
-  }
-
   .card-hero .art .layer,
   .card-hero .art .poster {
     object-position: 28% 58%;
@@ -804,12 +789,15 @@ a {
     content: "";
     position: absolute;
     z-index: -1;
-    inset: -18% -8% -22% -6%;
-    background: radial-gradient(ellipse at 22% 40%,
+    /* Runs past both card edges (the card clips it) and fades to nothing
+       before its own top and bottom, so it never shows a hard edge or a
+       strip of bare art at the side. */
+    inset: -34% -14% -26% -14%;
+    background: radial-gradient(ellipse 95% 50% at 32% 52%,
       rgba(243, 237, 226, 1) 0%,
-      rgba(243, 237, 226, 0.96) 48%,
-      rgba(243, 237, 226, 0.55) 70%,
-      rgba(243, 237, 226, 0) 82%);
+      rgba(243, 237, 226, 0.96) 58%,
+      rgba(243, 237, 226, 0.6) 80%,
+      rgba(243, 237, 226, 0) 100%);
     border-radius: 0;
     -webkit-mask-image: none;
     mask-image: none;
@@ -857,10 +845,6 @@ a {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
-  }
-
-  .card-hero .art {
-    inset: 0;
   }
 
   .art .layer {
