@@ -314,7 +314,28 @@ function initParallax() {
   // Size the art before it decodes (the sky waits: its setup comes later).
   states.forEach((state) => layout(state, true));
 
-  states.forEach((state) => {
+  // Hero layers ship as data-src / data-srcset so the poster can win LCP
+  // without four more 3840 requests racing it. Arm them after the poster
+  // has painted (idle callback, short timeout fallback). Delphi keeps
+  // ordinary lazy src/srcset and is watched immediately.
+  function armDeferredLayers(state) {
+    state.layers.forEach(({ el }) => {
+      if (el.dataset.srcset) {
+        el.srcset = el.dataset.srcset;
+        delete el.dataset.srcset;
+      }
+      if (el.dataset.sizes) {
+        el.sizes = el.dataset.sizes;
+        delete el.dataset.sizes;
+      }
+      if (el.dataset.src) {
+        el.src = el.dataset.src;
+        delete el.dataset.src;
+      }
+    });
+  }
+
+  function watchLayers(state) {
     Promise.all(state.layers.map(({ el }) => whenDecoded(el)))
       .then(() => {
         layout(state);
@@ -327,6 +348,44 @@ function initParallax() {
       .catch(() => {
         state.ready = false;
       });
+  }
+
+  function afterPoster(state, start) {
+    let started = false;
+    const run = () => {
+      if (started) return;
+      started = true;
+      start();
+    };
+    const schedule = () => {
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(run, { timeout: 450 });
+      } else {
+        setTimeout(run, 60);
+      }
+    };
+    const poster = state.poster;
+    if (poster && !(poster.complete && poster.naturalWidth > 0)) {
+      poster.addEventListener("load", schedule, { once: true });
+      poster.addEventListener("error", schedule, { once: true });
+      setTimeout(schedule, 2500);
+    } else {
+      schedule();
+    }
+  }
+
+  states.forEach((state) => {
+    const deferred = state.layers.some(
+      ({ el }) => el.dataset.src || el.dataset.srcset
+    );
+    if (!deferred) {
+      watchLayers(state);
+      return;
+    }
+    afterPoster(state, () => {
+      armDeferredLayers(state);
+      watchLayers(state);
+    });
   });
 
   function measureScroll() {
