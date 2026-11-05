@@ -78,6 +78,10 @@
 .ju-near{left:0;bottom:0;height:58%;pointer-events:none}
 .ju-near img{object-fit:contain;object-position:50% 100%;height:100%;width:100%}
 .vw.is-port .sa-mid img,.vw.is-port .sa-near img{object-position:50% 42%;transform:scale(1.18);transform-origin:50% 60%}
+/* v17b: portrait near plate is 3840x3440 (16:9 plate + 1280px inked foreground).
+   Offset keeps the original 16:9 part exactly where it sat before
+   (0.42*(H-0.5625W) with W = 124vw), so only new ground is added below. */
+.vw.is-port .sa-near img{object-position:50% calc(42% + 17.36vw)}
 .vw.is-port .ar-face img{object-position:50% 52%;transform:scale(1.18);transform-origin:50% 64%}
 
 /* ——— mobile: stage / notes split, safe areas, touch targets ——— */
@@ -140,6 +144,7 @@
 
   /* portrait layer framing inside the shorter stage */
   .vw.is-port .sa-mid img,.vw.is-port .sa-near img{object-position:50% 46%;transform:scale(1.22);transform-origin:50% 58%}
+  .vw.is-port .sa-near img{object-position:50% calc(46% + 19.01vw)}
   .vw.is-port .ar-face img{object-position:50% 54%;transform:scale(1.2);transform-origin:50% 62%}
 }
 

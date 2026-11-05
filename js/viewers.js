@@ -3,7 +3,7 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=16b";
+  const V = "?v=17b";
   const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
@@ -41,7 +41,7 @@
       <div class="vw-scene" data-s="saturn">
         <div class="vw-layer sa-far" data-d="0.12"><img data-src="assets/viewers/saturn-far.webp${V}" alt=""></div>
         <div class="vw-layer sa-layer sa-mid" data-d="0.4"><img data-src="assets/viewers/saturn-mid.webp${V}" alt=""></div>
-        <div class="vw-layer sa-layer sa-near" data-d="1"><img data-src="assets/viewers/saturn-near.webp${V}" alt=""></div>
+        <div class="vw-layer sa-layer sa-near" data-d="1"><img data-src="assets/viewers/saturn-near.webp${V}" data-src-port="assets/viewers/saturn-near-port.webp${V}" alt=""></div>
       </div>
       <div class="vw-scene" data-s="arch">
         <div class="vw-layer ar-beyond"><img data-src="assets/viewers/arch-beyond.webp${V}" alt=""></div>
@@ -69,9 +69,17 @@
   let cur = null, raf = 0;
   const st = { tilt: 0, rot: 0, tTilt: 0, tRot: 0, cx: 0, cy: 0, tx: 0, ty: 0, p: 0, tp: 0, gyro: false, last: 0 };
 
+  /* portrait frames are taller than the 16:9 near plate: swap in the plate with
+     extended foreground (same top 2160 rows + inked ground below) so the nearest
+     layer always reaches past the stage bottom, incl. parallax travel */
+  const pick = (im) => (dlg.classList.contains("is-port") && im.dataset.srcPort) || im.dataset.srcLand || im.dataset.src;
   function fitPortrait() {
     const port = innerWidth < innerHeight;
     dlg.classList.toggle("is-port", port);
+    dlg.querySelectorAll("img[data-src-port]").forEach((im) => {
+      if (!im.dataset.srcLand) im.dataset.srcLand = im.dataset.src || im.getAttribute("src");
+      if (im.getAttribute("src")) { const u = pick(im); if (im.getAttribute("src") !== u) im.src = u; }
+    });
   }
   addEventListener("resize", fitPortrait);
   function open(k) {
@@ -81,7 +89,7 @@
     dlg.querySelectorAll(".vw-scene").forEach((s) => {
       const on = s.dataset.s === k;
       s.classList.toggle("is-on", on);
-      if (on) s.querySelectorAll("img[data-src]").forEach((im) => { im.src = im.dataset.src; im.removeAttribute("data-src"); });
+      if (on) s.querySelectorAll("img[data-src]").forEach((im) => { im.src = pick(im); im.removeAttribute("data-src"); });
     });
     $("#vw-count").textContent = `${["i", "ii", "iii", "iv"][ORDER.indexOf(k)]} / iv`;
     $("#vw-title").textContent = notes[k].title;
@@ -132,7 +140,11 @@
       face.style.transform = `scale(${faceScale})`;
       face.style.opacity = String(clamp(1 - (p - 0.68) / 0.26, 0, 1));
       const beyondScale = 1.1 + p * 0.85;           // 1.1 → 1.95, approaching
-      const origin = 0.64, footNy = 0.955;
+      /* v17b: the face plate's foot row (0.955 of the 16:9 plate) expressed in
+         LAYER-box coordinates. Desktop: contain fills the box (≈0.955). Portrait
+         (mobile): contain + object-position + inner img scale put the feet much
+         higher (~0.76), so using 0.955 there made frame and ground slide apart. */
+      const origin = 0.64, footNy = archFootNy(face);
       const faceFoot = origin + (footNy - origin) * faceScale;
       const beyondFoot = origin + (footNy - origin) * beyondScale;
       /* % of unscaled layer height; applied after scale via transform list order */
@@ -150,6 +162,26 @@
     }
     raf = requestAnimationFrame(tick);
   }
+
+  /* foot row of arch-face in its layer box (0..1), from live layout; cached per size */
+  let footCache = null;
+  function archFootNy(face) {
+    const im = face.querySelector("img"), W = face.offsetWidth, H = face.offsetHeight;
+    const key = W + "x" + H + dlg.className;
+    if (footCache && footCache.key === key) return footCache.v;
+    const cs = getComputedStyle(im), a = 16 / 9;
+    const iw = im.offsetWidth, ih = im.offsetHeight;
+    const rw = Math.min(iw, ih * a), rh = rw / a;
+    const py = (cs.objectPosition.split(" ")[1] || "50%");
+    const top = py.endsWith("%") ? (ih - rh) * parseFloat(py) / 100 : parseFloat(py);
+    let y = top + 0.955 * rh;                                   // in img box
+    const m = cs.transform && cs.transform !== "none" ? new DOMMatrix(cs.transform) : null;
+    if (m) { const oy = parseFloat(cs.transformOrigin.split(" ")[1]) || ih / 2; y = oy + (y - oy) * m.d + m.f; }
+    const v = (im.offsetTop + y) / H;
+    footCache = { key, v };
+    return v;
+  }
+  addEventListener("resize", () => { footCache = null; });
 
   /* ---------- input ---------- */
   let drag = null;
