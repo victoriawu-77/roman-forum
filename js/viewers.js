@@ -1,0 +1,193 @@
+/* Landmark viewers: four spatial views that replace the flat notes sheet
+   for the four #explore landmarks. Only transform / opacity are animated. */
+(() => {
+  const ORDER = ["floor", "saturn", "arch", "julia"];
+  const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const V = "?v=14";
+  const HINT = {
+    floor: "Drag to turn the plan. Tap a marker to go there.",
+    saturn: "Move the pointer, or tilt the phone, to step around the columns.",
+    arch: "Scroll or drag to walk through the arch.",
+    julia: "Scroll or drag along the steps. Tap a ring to read a game board."
+  };
+  /* near/mid layers are raster pen-ink PNGs (v2); board SVGs stay vector */
+  const BOARDS = [
+    { x: 21, y: 73, cap: "A rota — eight spokes in a circle, a three-in-a-row game for two.",
+      d: `<circle class="ink" stroke-width="3" cx="100" cy="100" r="88"/>` + [0, 45, 90, 135].map(a => `<line class="ink" stroke-width="2.4" x1="${100 + 88 * Math.cos(a * Math.PI / 180)}" y1="${100 + 88 * Math.sin(a * Math.PI / 180)}" x2="${100 - 88 * Math.cos(a * Math.PI / 180)}" y2="${100 - 88 * Math.sin(a * Math.PI / 180)}"/>`).join("") + `<circle class="ink" stroke-width="2" cx="100" cy="100" r="16"/>` },
+    { x: 54, y: 74, cap: "Duodecim scripta — three rows of twelve, raced with dice.",
+      d: [0, 1, 2].map(r => Array.from({ length: 12 }, (_, c) => `<circle class="ink" stroke-width="2" cx="${16 + c * 15.3 + (c > 5 ? 6 : 0)}" cy="${62 + r * 38}" r="5.5"/>`).join("")).join("") + `<path class="ink" stroke-width="1.6" d="M104 40V170"/>` },
+    { x: 83, y: 72, cap: "Terni lapilli — a scratched square, three stones each.",
+      d: `<rect class="ink" stroke-width="3" x="22" y="22" width="156" height="156"/><path class="ink" stroke-width="2.4" d="M22 22 178 178M178 22 22 178M100 22V178M22 100H178"/>` }
+  ];
+
+  /* ---------- markup ---------- */
+  const dlg = document.createElement("dialog");
+  dlg.className = "vw";
+  dlg.setAttribute("aria-labelledby", "vw-title");
+  dlg.innerHTML = `
+    <div class="vw-stage" id="vw-stage">
+      <div class="vw-scene" data-s="floor"><div class="fl-wrap"><div class="fl-plane is-live">
+        <img data-src="assets/viewers/floor-plan.webp${V}" alt="">
+        ${[["arch", 13, 29, "Arch"], ["saturn", 18, 53, "Temple of Saturn"], ["floor", 56, 52, "The square"], ["julia", 47, 80, "Basilica Julia"]]
+          .map(([k, x, y, l]) => `<div class="fl-pin" style="left:${x}%;top:${y}%"><div class="fl-post"><button type="button" data-go="${k}">${l}</button></div></div>`).join("")}
+      </div></div></div>
+      <div class="vw-scene" data-s="saturn">
+        <div class="vw-layer sa-far" data-d="0.12"><img data-src="assets/viewers/saturn-far.webp${V}" alt=""></div>
+        <div class="vw-layer sa-layer sa-mid" data-d="0.4"><img data-src="assets/viewers/saturn-mid.webp${V}" alt=""></div>
+        <div class="vw-layer sa-layer sa-near" data-d="1"><img data-src="assets/viewers/saturn-near.webp${V}" alt=""></div>
+      </div>
+      <div class="vw-scene" data-s="arch">
+        <div class="vw-layer ar-beyond"><img data-src="assets/viewers/arch-beyond.webp${V}" alt=""></div>
+        <div class="vw-layer ar-face"><img data-src="assets/viewers/arch-face.webp${V}" alt=""></div>
+      </div>
+      <div class="vw-scene" data-s="julia">
+        <div class="vw-layer ju-track"><img data-src="assets/viewers/julia-pano.webp${V}" alt="">
+          ${BOARDS.map((b, i) => `<button type="button" class="ju-spot" data-board="${i}" style="left:${b.x}%;top:${b.y}%" aria-label="Game board ${i + 1}"></button>`).join("")}
+        </div>
+        <div class="vw-layer ju-near"><img data-src="assets/viewers/julia-near.webp${V}" alt=""></div>
+        <div class="ju-loupe" role="dialog" aria-label="Game board"><button type="button" data-loupe-close>Back</button><svg viewBox="0 0 200 200"></svg><p></p></div>
+      </div>
+    </div>
+    <div class="vw-top"><span class="vw-count" id="vw-count"></span><button type="button" class="vw-close" data-close>Close</button></div>
+    <div class="vw-meter"><i></i></div>
+    <div class="vw-notes"><h2 id="vw-title"></h2><p id="vw-body"></p><p class="vw-hint" id="vw-hint"></p></div>
+    <div class="vw-nav"><button type="button" data-step="-1">← Previous</button><button type="button" data-step="1">Next →</button></div>`;
+  document.body.appendChild(dlg);
+
+  const $ = (s) => dlg.querySelector(s);
+  const stage = $("#vw-stage");
+  const meter = $(".vw-meter i");
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  let cur = null, raf = 0;
+  const st = { tilt: 0, rot: 0, tTilt: 0, tRot: 0, cx: 0, cy: 0, tx: 0, ty: 0, p: 0, tp: 0, gyro: false, last: 0 };
+
+  function fitPortrait() {
+    const port = innerWidth < innerHeight;
+    dlg.classList.toggle("is-port", port);
+  }
+  addEventListener("resize", fitPortrait);
+  function open(k) {
+    fitPortrait();
+    cur = k;
+    dlg.dataset.k = k;
+    dlg.querySelectorAll(".vw-scene").forEach((s) => {
+      const on = s.dataset.s === k;
+      s.classList.toggle("is-on", on);
+      if (on) s.querySelectorAll("img[data-src]").forEach((im) => { im.src = im.dataset.src; im.removeAttribute("data-src"); });
+    });
+    $("#vw-count").textContent = `${["i", "ii", "iii", "iv"][ORDER.indexOf(k)]} / iv`;
+    $("#vw-title").textContent = notes[k].title;
+    $("#vw-body").textContent = notes[k].body;
+    $("#vw-hint").textContent = RM.matches ? "Motion is reduced: a still, layered view." : HINT[k];
+    $(".ju-loupe").classList.remove("is-on");
+    dlg.querySelectorAll("[data-go]").forEach((b) => b.setAttribute("aria-current", b.dataset.go === k));
+    // reset scene state
+    Object.assign(st, { tilt: 0, rot: 0, tTilt: 56, tRot: -16, cx: 0, cy: 0, tx: 0, ty: 0, p: 0, tp: 0 });
+    if (RM.matches) { st.tilt = 56; st.rot = -16; }
+    if (!dlg.open) { dlg.showModal(); requestAnimationFrame(() => dlg.classList.add("is-in")); }
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(tick);
+  }
+  function close() { dlg.classList.remove("is-in"); setTimeout(() => dlg.open && dlg.close(), RM.matches ? 0 : 300); }
+  dlg.addEventListener("close", () => { dlg.classList.remove("is-in"); cancelAnimationFrame(raf); cur = null; });
+  dlg.addEventListener("cancel", (e) => { e.preventDefault(); if ($(".ju-loupe.is-on")) return $(".ju-loupe").classList.remove("is-on"); close(); });
+
+  function tick(t) {
+    const k = RM.matches ? 1 : 0.085;
+    const sc = dlg.querySelector(".vw-scene.is-on");
+    if (cur === "floor") {
+      st.tilt = lerp(st.tilt, st.tTilt, k * 0.7); st.rot = lerp(st.rot, st.tRot, k * 0.7);
+      sc.querySelector(".fl-plane").style.transform = `translate(-50%,-50%) rotateX(${st.tilt}deg) rotateZ(${st.rot}deg)`;
+      sc.querySelectorAll(".fl-post").forEach((p) => (p.style.transform = `rotateZ(${-st.rot}deg) rotateX(-90deg)`));
+    } else if (cur === "saturn") {
+      let tx = st.tx, ty = st.ty;
+      if (!RM.matches && !st.gyro && t - st.last > 2500) { tx = Math.sin(t / 3200) * 0.7; ty = Math.cos(t / 4100) * 0.25; }
+      if (RM.matches) tx = ty = 0;
+      st.cx = lerp(st.cx, tx, k * 0.6); st.cy = lerp(st.cy, ty, k * 0.6);
+      const mx = innerWidth * 0.075, my = innerHeight * 0.05;
+      sc.querySelectorAll(".vw-layer").forEach((l) => {
+        const d = +l.dataset.d;
+        l.style.transform = `translate3d(${-st.cx * mx * d}px,${-st.cy * my * d}px,0) scale(${1 + d * 0.02})`;
+      });
+    } else if (cur === "arch") {
+      st.p = lerp(st.p, st.tp, k);
+      const p = st.p, face = sc.querySelector(".ar-face");
+      face.style.transform = `scale(${Math.pow(11, p * 1.05)})`;
+      face.style.opacity = String(clamp(1 - (p - 0.82) / 0.14, 0, 1));
+      sc.querySelector(".ar-beyond").style.transform = `scale(${1.32 - p * 0.32})`;
+      meter.style.transform = `scaleX(${p})`;
+    } else if (cur === "julia") {
+      st.p = lerp(st.p, st.tp, k);
+      const tr = sc.querySelector(".ju-track"), nr = sc.querySelector(".ju-near");
+      const tw = tr.offsetWidth, nw = innerWidth * 2.7;
+      nr.style.width = nw + "px";
+      tr.style.transform = `translate3d(${-st.p * (tw - innerWidth)}px,0,0)`;
+      nr.style.transform = `translate3d(${innerWidth * 0.2 - st.p * (nw - innerWidth * 0.6)}px,0,0)`;
+      meter.style.transform = `scaleX(${st.p})`;
+    }
+    raf = requestAnimationFrame(tick);
+  }
+
+  /* ---------- input ---------- */
+  let drag = null;
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    drag = { x: e.clientX, y: e.clientY, tilt: st.tTilt, rot: st.tRot, p: st.tp };
+    stage.classList.add("is-drag"); stage.setPointerCapture(e.pointerId);
+    if (cur === "saturn" && window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission && !st.asked) {
+      st.asked = true; DeviceOrientationEvent.requestPermission().catch(() => {});
+    }
+  });
+  stage.addEventListener("pointermove", (e) => {
+    st.last = performance.now();
+    if (cur === "saturn" && !st.gyro) {
+      if (e.pointerType === "mouse" || drag) { st.tx = (e.clientX / innerWidth) * 2 - 1; st.ty = (e.clientY / innerHeight) * 2 - 1; }
+    }
+    if (!drag || RM.matches) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (cur === "floor") { st.tRot = drag.rot + dx * 0.25; st.tTilt = clamp(drag.tilt - dy * 0.15, 22, 66); }
+    if (cur === "arch") st.tp = clamp(drag.p - (dy + dx) / (innerHeight * 1.4), 0, 1);
+    if (cur === "julia") st.tp = clamp(drag.p - dx / (innerWidth * 1.6), 0, 1);
+  });
+  const end = () => { drag = null; stage.classList.remove("is-drag"); };
+  stage.addEventListener("pointerup", end); stage.addEventListener("pointercancel", end);
+  stage.addEventListener("wheel", (e) => {
+    e.preventDefault(); if (RM.matches) return;
+    const d = (Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX) / 1400;
+    if (cur === "arch" || cur === "julia") st.tp = clamp(st.tp + d, 0, 1);
+    if (cur === "floor") st.tRot += d * 60;
+  }, { passive: false });
+  window.addEventListener("deviceorientation", (e) => {
+    if (cur !== "saturn" || e.gamma == null || RM.matches) return;
+    st.gyro = true; st.tx = clamp(e.gamma / 30, -1, 1); st.ty = clamp((e.beta - 45) / 30, -1, 1);
+  });
+  dlg.addEventListener("keydown", (e) => {
+    if (!cur || RM.matches && /Arrow/.test(e.key)) return;
+    const pan = cur === "arch" || cur === "julia";
+    if (pan && /Arrow(Right|Down)/.test(e.key)) { st.tp = clamp(st.tp + 0.12, 0, 1); e.preventDefault(); }
+    else if (pan && /Arrow(Left|Up)/.test(e.key)) { st.tp = clamp(st.tp - 0.12, 0, 1); e.preventDefault(); }
+    else if (e.key === "ArrowRight" || e.key === "]") step(1);
+    else if (e.key === "ArrowLeft" || e.key === "[") step(-1);
+  });
+  function step(n) { open(ORDER[(ORDER.indexOf(cur) + n + 4) % 4]); }
+  dlg.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.close != null) close();
+    else if (b.dataset.step) step(+b.dataset.step);
+    else if (b.dataset.go) { if (b.dataset.go !== cur) open(b.dataset.go); }
+    else if (b.dataset.board != null) {
+      const bd = BOARDS[+b.dataset.board], lp = $(".ju-loupe");
+      lp.querySelector("svg").innerHTML = bd.d; lp.querySelector("p").textContent = bd.cap; lp.classList.add("is-on");
+    } else if (b.dataset.loupeClose != null) $(".ju-loupe").classList.remove("is-on");
+  });
+
+  /* take over the four landmark buttons before main.js opens the flat sheet */
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-note]");
+    if (!b || !ORDER.includes(b.dataset.note) || dlg.contains(b)) return;
+    e.stopPropagation(); e.preventDefault();
+    if (typeof closeMenus === "function") closeMenus();
+    open(b.dataset.note);
+  }, true);
+  window.__viewers = { open, state: st };
+})();
