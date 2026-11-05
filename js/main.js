@@ -784,7 +784,7 @@ function initParallax() {
           heading: 0
         })
       );
-      state.flock = { dir: -1, speed: 21, baseY: 128, t: rand() * 20, wait: 0, entered: false };
+      state.flock = { dir: -1, speed: 21, baseY: 450, t: rand() * 20, wait: 0, entered: false };
       state.mist = [
         { sy: 72, len: 230, gap: 2.8, lines: 5, speed: 2.4, depth: 0.06, off: 0.08, alpha: 0.2 },
         { sy: 196, len: 300, gap: 3, lines: 6, speed: 3.2, depth: 0.04, off: 0.66, alpha: 0.18 }
@@ -829,7 +829,7 @@ function initParallax() {
   function launchFlock(state, x) {
     const f = state.flock;
     const v = state.view;
-    f.baseY = 112 + rand() * 46;
+    f.baseY = 400 + rand() * 100; // below sticky nav; mid open-sky band of plate
     f.t = rand() * 20;
     const edge = x !== undefined ? x : f.dir < 0 ? v.x1 + 70 : v.x0 - 70;
     const climb = (rand() - 0.5) * 6;
@@ -988,7 +988,7 @@ function initParallax() {
     const roll = w.roll || 0;
     const dir = w.dirNow !== undefined ? w.dirNow : w.vx < 0 ? -1 : 1;
     const j = w.j;
-    const base = clamp(span * 0.055, 0.75, 1.35); // stroke width at the shoulder, px
+    const base = clamp(span * 0.055, 0.75, 2.1); // stroke width at the shoulder, px (raised with 16d scale)
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(roll * 0.45 + (w.heading || 0) * dir * 0.5);
@@ -1088,10 +1088,10 @@ function initParallax() {
     // Bird CSS size follows plate zoom (g.s). When a tall hero crops the
     // plate to a narrow visible width, ease that down a little so gulls stay
     // a steady share of the *visible* scene — continuous in visW, no 600px cliff.
-    // BOOST lifts the whole flock after Victoria found 16b too small (1.75 after 1.42 still read small).
+    // Hero BOOST 3.0 (16d): live 1.75 still read as specks. Delphi keeps 1.75 so the pair feels unchanged.
     const visW = g.cw / Math.max(g.s, 1e-6);
     const crop = clamp(0.84 + 0.18 * ((visW - 900) / 2300), 0.84, 1.02);
-    const BOOST = 1.75;
+    const BOOST = state.mode === "hero" ? 3.0 : 1.75;
     const plateScale = g.s * crop * BOOST;
     const ordered = state.birds.slice().sort((a, b) => a.depth - b.depth);
     ordered.forEach((b) => {
@@ -1263,7 +1263,7 @@ function initParallax() {
       const g = st.geo;
       const visW = g.cw / Math.max(g.s, 1e-6);
       const crop = clamp(0.84 + 0.18 * ((visW - 900) / 2300), 0.84, 1.02);
-      const BOOST = 1.75;
+      const BOOST = mode === "hero" ? 3.0 : 1.75;
       return { s: g.s, visW, crop, boost: BOOST, plateScale: g.s * crop * BOOST, cw: g.cw, ch: g.ch };
     }
   };

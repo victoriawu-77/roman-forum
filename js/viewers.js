@@ -3,7 +3,7 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=15";
+  const V = "?v=16b";
   const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
@@ -125,12 +125,19 @@
          vanishing point (~54%), so scale keeps the road VP fixed — arch base stays low,
          attic rises out, pillars sweep outward. Not a center-drill zoom. */
       const faceScale = Math.pow(5.4, p);           // 1 → ~5.4 (pass through; not a 12× center-punch)
-      /* Pure scale around the shared eye-height origin (CSS 50% 64%) —
-         horizon / road VP stays put; attic rises out; pillars sweep aside. */
+      /* Pure scale around the shared eye-height origin (CSS 50% 64%).
+         Face now bakes doorway threshold with the column feet (same transform).
+         Beyond still approaches more slowly; a tiny translateY keeps the
+         far-road lip from sliding against the baked threshold. */
       face.style.transform = `scale(${faceScale})`;
       face.style.opacity = String(clamp(1 - (p - 0.68) / 0.26, 0, 1));
       const beyondScale = 1.1 + p * 0.85;           // 1.1 → 1.95, approaching
-      beyond.style.transform = `scale(${beyondScale})`;
+      const origin = 0.64, footNy = 0.955;
+      const faceFoot = origin + (footNy - origin) * faceScale;
+      const beyondFoot = origin + (footNy - origin) * beyondScale;
+      /* % of unscaled layer height; applied after scale via transform list order */
+      const dyPct = (faceFoot - beyondFoot) * 100;
+      beyond.style.transform = `translateY(${dyPct.toFixed(3)}%) scale(${beyondScale})`;
       meter.style.transform = `scaleX(${p})`;
     } else if (cur === "julia") {
       st.p = lerp(st.p, st.tp, k);
