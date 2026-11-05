@@ -3,12 +3,19 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=14";
+  const V = "?v=15";
+  const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
-    saturn: "Move the pointer, or tilt the phone, to step around the columns.",
-    arch: "Scroll or drag to walk through the arch.",
-    julia: "Scroll or drag along the steps. Tap a ring to read a game board."
+    saturn: TOUCH
+      ? "Drag across the columns, or tilt the phone, to step around them."
+      : "Move the pointer, or tilt the phone, to step around the columns.",
+    arch: TOUCH
+      ? "Drag upward to walk through the arch at eye level."
+      : "Scroll or drag to walk forward through the arch at eye level.",
+    julia: TOUCH
+      ? "Drag along the steps. Tap a ring to read a game board."
+      : "Scroll or drag along the steps. Tap a ring to read a game board."
   };
   /* near/mid layers are raster pen-ink PNGs (v2); board SVGs stay vector */
   const BOARDS = [
@@ -84,7 +91,8 @@
     dlg.querySelectorAll("[data-go]").forEach((b) => b.setAttribute("aria-current", b.dataset.go === k));
     // reset scene state
     Object.assign(st, { tilt: 0, rot: 0, tTilt: 56, tRot: -16, cx: 0, cy: 0, tx: 0, ty: 0, p: 0, tp: 0 });
-    if (RM.matches) { st.tilt = 56; st.rot = -16; }
+    if (matchMedia("(max-width: 640px)").matches) { st.tTilt = 48; st.tRot = -2; }
+    if (RM.matches) { st.tilt = st.tTilt; st.rot = st.tRot; }
     if (!dlg.open) { dlg.showModal(); requestAnimationFrame(() => dlg.classList.add("is-in")); }
     cancelAnimationFrame(raf); raf = requestAnimationFrame(tick);
   }
@@ -104,17 +112,25 @@
       if (!RM.matches && !st.gyro && t - st.last > 2500) { tx = Math.sin(t / 3200) * 0.7; ty = Math.cos(t / 4100) * 0.25; }
       if (RM.matches) tx = ty = 0;
       st.cx = lerp(st.cx, tx, k * 0.6); st.cy = lerp(st.cy, ty, k * 0.6);
-      const mx = innerWidth * 0.075, my = innerHeight * 0.05;
+      /* amp kept modest; layers oversized in CSS so extremes never bare an edge */
+      const mx = innerWidth * 0.07, my = innerHeight * 0.045;
       sc.querySelectorAll(".vw-layer").forEach((l) => {
         const d = +l.dataset.d;
-        l.style.transform = `translate3d(${-st.cx * mx * d}px,${-st.cy * my * d}px,0) scale(${1 + d * 0.02})`;
+        l.style.transform = `translate3d(${-st.cx * mx * d}px,${-st.cy * my * d}px,0) scale(${1.04 + d * 0.03})`;
       });
     } else if (cur === "arch") {
       st.p = lerp(st.p, st.tp, k);
-      const p = st.p, face = sc.querySelector(".ar-face");
-      face.style.transform = `scale(${Math.pow(11, p * 1.05)})`;
-      face.style.opacity = String(clamp(1 - (p - 0.82) / 0.14, 0, 1));
-      sc.querySelector(".ar-beyond").style.transform = `scale(${1.32 - p * 0.32})`;
+      const p = st.p, face = sc.querySelector(".ar-face"), beyond = sc.querySelector(".ar-beyond");
+      /* Dolly forward at locked eye height. CSS transform-origin sits on the horizon /
+         vanishing point (~54%), so scale keeps the road VP fixed — arch base stays low,
+         attic rises out, pillars sweep outward. Not a center-drill zoom. */
+      const faceScale = Math.pow(5.4, p);           // 1 → ~5.4 (pass through; not a 12× center-punch)
+      /* Pure scale around the shared eye-height origin (CSS 50% 64%) —
+         horizon / road VP stays put; attic rises out; pillars sweep aside. */
+      face.style.transform = `scale(${faceScale})`;
+      face.style.opacity = String(clamp(1 - (p - 0.68) / 0.26, 0, 1));
+      const beyondScale = 1.1 + p * 0.85;           // 1.1 → 1.95, approaching
+      beyond.style.transform = `scale(${beyondScale})`;
       meter.style.transform = `scaleX(${p})`;
     } else if (cur === "julia") {
       st.p = lerp(st.p, st.tp, k);

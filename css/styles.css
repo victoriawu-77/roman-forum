@@ -842,6 +842,31 @@ a {
   }
 }
 
+@media (max-width: 860px) {
+  .sheet {
+    width: calc(100vw - 1rem);
+    max-width: none;
+    max-height: min(90dvh, 100%);
+    margin: 0;
+    padding: 1.35rem max(1rem, env(safe-area-inset-right, 0px)) max(1.25rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+    border-radius: 3px;
+  }
+  .sheet h2 {
+    font-size: clamp(1.45rem, 6.5vw, 1.75rem);
+    padding-right: 3.2rem;
+  }
+  .sheet-close {
+    top: max(0.55rem, env(safe-area-inset-top, 0px));
+    right: max(0.55rem, env(safe-area-inset-right, 0px));
+    min-width: 44px;
+  }
+  .nav-links .menu-button,
+  .nav-links .text-link {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

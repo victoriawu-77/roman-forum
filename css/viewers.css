@@ -41,14 +41,14 @@
 .fl-post button{position:absolute;left:-4px;bottom:88px;white-space:nowrap;font:400 .9rem/1 var(--serif);font-style:italic;background:var(--paper);padding:5px 8px;border:1px solid var(--ink);cursor:pointer;pointer-events:auto}
 .fl-post button[aria-current="true"]{background:var(--ink);color:var(--paper)}
 
-/* ii. saturn — depth layers */
-.sa-layer{inset:-8%}
-.sa-far{inset:-6%}
+/* ii. saturn — depth layers (wide safe margins so parallax never bares an edge) */
+.sa-layer{inset:-14%}
+.sa-far{inset:-22%}
 
-/* iii. arch — push through */
-.ar-beyond{inset:0}
+/* iii. arch — walk through at locked eye-height (origin = horizon / VP).
+   Face + beyond MUST share the same box so 50% 54% lands on the same screen point. */
+.ar-beyond,.ar-face{inset:-6%;transform-origin:50% 64%}
 .ar-beyond img{object-fit:cover}
-.ar-face{inset:0;transform-origin:50% 69%}
 
 /* iv. julia — dolly */
 .ju-track{top:50%;left:0;height:128dvh;aspect-ratio:16/9;margin-top:-64dvh}
@@ -63,37 +63,90 @@
 .ju-loupe p{position:absolute;left:14%;right:14%;bottom:9%;margin:0;text-align:center;font:italic 400 .95rem/1.35 var(--serif)}
 .ju-loupe button{position:absolute;top:10%;left:50%;transform:translateX(-50%);font:400 .72rem/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;border-bottom:1px solid var(--ink);padding-bottom:3px}
 
-@media (max-width:640px){
-  .vw-notes{left:0;right:0;bottom:0;width:auto;padding:14px 18px 62px;border-left:0;border-top:1px solid var(--ink)}
-  .vw-notes p{font-size:.9rem;line-height:1.45}
-  .vw-notes h2{font-size:1.3rem}
-  .vw-nav{right:auto;left:18px;bottom:12px;padding:8px 0}
-  .vw-meter{bottom:auto;top:62px}
-  .fl-plane{width:150vw;top:36%}
-  .fl-post::before{height:60px}.fl-post button{bottom:58px;font-size:.78rem}
-}
 @media (prefers-reduced-motion:reduce){
   .vw,.vw-notes,.fl-plane,.fl-post,.ju-loupe{transition:none!important}
   .ju-spot::before{animation:none}
 }
 .ju-near,.sa-layer,.sa-far,.ar-face,.ar-beyond{pointer-events:none}
 .vw-close:focus:not(:focus-visible){outline:none}
-@media (max-width:640px){
-  .vw-stage{bottom:auto;height:62dvh}
-  .vw-notes{top:62dvh;bottom:0;overflow:auto}
-  .ju-track{height:76dvh;margin-top:-38dvh}
-}
 
 /* v2 pen-ink raster layers */
 .sa-far img,.ar-beyond img,.ju-track img{width:100%;height:100%;object-fit:cover;object-position:50% 50%}
-.sa-mid,.sa-near,.ar-face{inset:-4%}
+.sa-mid,.sa-near{inset:-12%}
 .sa-mid img,.sa-near img,.ar-face img,.ju-near img{width:100%;height:100%;object-fit:contain;object-position:50% 100%;pointer-events:none}
-.ar-face img{object-position:50% 55%;object-fit:contain}
+.ar-face img{object-position:50% 62%;object-fit:contain}
 .ju-near{left:0;bottom:0;height:58%;pointer-events:none}
 .ju-near img{object-fit:contain;object-position:50% 100%;height:100%;width:100%}
 .vw.is-port .sa-mid img,.vw.is-port .sa-near img{object-position:50% 42%;transform:scale(1.18);transform-origin:50% 60%}
-.vw.is-port .ar-face img{object-position:50% 48%;transform:scale(1.22);transform-origin:50% 65%}
+.vw.is-port .ar-face img{object-position:50% 52%;transform:scale(1.18);transform-origin:50% 64%}
+
+/* ——— mobile: stage / notes split, safe areas, touch targets ——— */
 @media (max-width:640px){
+  .vw-top{
+    padding:max(14px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  }
+  .vw-close{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;padding:10px 2px 6px;box-shadow:0 0 0 6px var(--paper)}
+  .vw-count{padding:8px 8px}
+
+  /* 55/45 split — notes get room; nav sits in notes footer, not over body */
+  .vw-stage{bottom:auto;height:55dvh}
+  .vw-notes{
+    left:0;right:0;top:55dvh;bottom:0;width:auto;
+    padding:14px 18px calc(58px + env(safe-area-inset-bottom, 0px));
+    border-left:0;border-top:1px solid var(--ink);
+    overflow:auto;-webkit-overflow-scrolling:touch;
+  }
+  .vw-notes h2{font-size:1.28rem;margin-bottom:.4rem}
+  .vw-notes p{font-size:.9rem;line-height:1.45}
+  .vw-hint{margin-top:10px!important;font-size:.72rem!important;line-height:1.35!important}
+
+  .vw-nav{
+    left:max(12px, env(safe-area-inset-left, 0px));
+    right:max(12px, env(safe-area-inset-right, 0px));
+    bottom:max(8px, env(safe-area-inset-bottom, 0px));
+    width:auto;padding:0;gap:0;
+    justify-content:space-between;align-items:center;
+    background:transparent;
+  }
+  .vw-nav button{
+    min-height:44px;min-width:44px;padding:12px 8px;
+    letter-spacing:.1em;font-size:.76rem;
+    background:var(--paper);
+  }
+
+  .vw-meter{bottom:auto;top:calc(52px + env(safe-area-inset-top, 0px));width:min(200px,46vw)}
+
+  /* floor: less extreme width so pins stay on-stage; larger tap labels */
+  .fl-plane{width:128vw;top:40%}
+  .fl-pin::before{left:-7px;top:-7px;width:14px;height:14px}
+  .fl-post::before{height:54px}
+  .fl-post button{
+    bottom:52px;left:-8px;
+    font-size:.84rem;line-height:1.15;
+    padding:12px 14px;min-height:44px;
+  }
+  .fl-post button::after{
+    content:"";position:absolute;inset:-14px -10px; /* expand tap target past 3d squash */
+  }
+
+  .ju-track{height:70dvh;margin-top:-35dvh}
   .ju-near{height:52%;opacity:1}
   .ju-near img{object-fit:contain;object-position:30% 100%;transform:scale(1.15);transform-origin:30% 100%}
+  .ju-spot{width:48px;height:48px;margin:-24px 0 0 -24px}
+  .ju-spot::after{inset:18px}
+  .ju-loupe{top:48%;width:min(420px,88vw);margin:calc(min(420px,88vw)/-2) 0 0 calc(min(420px,88vw)/-2)}
+  .ju-loupe button{min-height:44px;padding:10px 4px 4px;top:8%}
+  .ju-loupe p{font-size:.88rem;bottom:8%}
+
+  /* portrait layer framing inside the shorter stage */
+  .vw.is-port .sa-mid img,.vw.is-port .sa-near img{object-position:50% 46%;transform:scale(1.22);transform-origin:50% 58%}
+  .vw.is-port .ar-face img{object-position:50% 54%;transform:scale(1.2);transform-origin:50% 62%}
+}
+
+/* short phones: give notes a bit more room */
+@media (max-width:640px) and (max-height:760px){
+  .vw-stage{height:52dvh}
+  .vw-notes{top:52dvh;padding-top:12px;padding-bottom:calc(54px + env(safe-area-inset-bottom, 0px))}
+  .vw-notes h2{font-size:1.18rem}
+  .vw-notes p{font-size:.86rem;line-height:1.4}
 }
