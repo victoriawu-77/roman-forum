@@ -988,7 +988,7 @@ function initParallax() {
     const roll = w.roll || 0;
     const dir = w.dirNow !== undefined ? w.dirNow : w.vx < 0 ? -1 : 1;
     const j = w.j;
-    const base = Math.max(1.05, span * 0.06); // stroke width at the shoulder, px
+    const base = clamp(span * 0.055, 0.75, 1.35); // stroke width at the shoulder, px
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(roll * 0.45 + (w.heading || 0) * dir * 0.5);
@@ -1085,8 +1085,14 @@ function initParallax() {
     });
 
     if (state.mode === "hero" && state.flock.wait > 0) return;
-    // Phones show the plate larger, so the birds come down a size there.
-    const small = g.cw < 600 ? 0.85 : 1;
+    // Bird CSS size follows plate zoom (g.s). When a tall hero crops the
+    // plate to a narrow visible width, ease that down a little so gulls stay
+    // a steady share of the *visible* scene — continuous in visW, no 600px cliff.
+    // BOOST lifts the whole flock after Victoria found 16b too small (1.75 after 1.42 still read small).
+    const visW = g.cw / Math.max(g.s, 1e-6);
+    const crop = clamp(0.84 + 0.18 * ((visW - 900) / 2300), 0.84, 1.02);
+    const BOOST = 1.75;
+    const plateScale = g.s * crop * BOOST;
     const ordered = state.birds.slice().sort((a, b) => a.depth - b.depth);
     ordered.forEach((b) => {
       const soar = state.mode !== "hero";
@@ -1094,7 +1100,8 @@ function initParallax() {
       const p = place(b.x, b.y, b.depth);
       // Farther birds are paler, as the far city is paler than the temple.
       const alpha = 0.32 + b.depth * 1.0;
-      drawBird(ctx, p.x, p.y, Math.max(10, b.span * g.s * small * p.k * near), b, alpha, soar);
+      // Soft floor keeps a mark readable without flattening the flock sizes.
+      drawBird(ctx, p.x, p.y, Math.max(6, b.span * plateScale * p.k * near), b, alpha, soar);
     });
   }
 
@@ -1215,6 +1222,49 @@ function initParallax() {
         skyStates.forEach((state) => state.ready && updateSky(state, seconds / n));
       }
       drawSkyOnce();
+    },
+    placeFlock(mode, plateX, plateY) {
+      // Pin birds in plate pixels for screenshots (hero flock or Delphi pair).
+      skyStates.forEach((state) => {
+        if (state.mode !== mode || !state.birds) return;
+        if (state.mode === "hero" && state.flock) {
+          state.flock.entered = true;
+          state.flock.wait = 0;
+          state.flock.baseY = plateY;
+          state.birds.forEach((b) => {
+            b.x = plateX + (b.slot ? b.slot.x : 0);
+            b.y = plateY + (b.slot ? b.slot.y : 0);
+            b.vx = (state.flock.dir || -1) * state.flock.speed;
+            b.vy = 0;
+            b.roll = 0;
+            b.heading = 0;
+            b.amt = 0;
+            b.mix = 0;
+            b.glide = 2;
+          });
+        } else {
+          state.birds.forEach((b, i) => {
+            b.x = plateX + i * 36;
+            b.y = plateY + i * 10;
+            b.near = 0.5;
+            b.dirNow = 1;
+            b.roll = 0.1;
+            b.amt = 0;
+            b.mix = 0;
+            b.glide = 4;
+          });
+        }
+      });
+      drawSkyOnce();
+    },
+    birdScale(mode) {
+      const st = states.find((x) => x.mode === mode);
+      if (!st || !st.geo) return null;
+      const g = st.geo;
+      const visW = g.cw / Math.max(g.s, 1e-6);
+      const crop = clamp(0.84 + 0.18 * ((visW - 900) / 2300), 0.84, 1.02);
+      const BOOST = 1.75;
+      return { s: g.s, visW, crop, boost: BOOST, plateScale: g.s * crop * BOOST, cw: g.cw, ch: g.ch };
     }
   };
 }
