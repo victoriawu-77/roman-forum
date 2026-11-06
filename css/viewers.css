@@ -9,6 +9,51 @@
 .vw-scene.is-on{display:block}
 .vw-layer{position:absolute;will-change:transform}
 .vw-layer img,.vw-layer svg{display:block;width:100%;height:100%;pointer-events:none}
+
+/* v17j-ink3: primary plate draws once; trailing mask stays solid ink. */
+.vw-layer img.is-plate-primary,
+.fl-plane > img.is-plate-primary {
+  opacity: 0;
+}
+.vw-layer img.is-plate-secondary,
+.fl-plane > img.is-plate-secondary {
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.vw-layer img.is-plate-secondary.is-shown,
+.fl-plane > img.is-plate-secondary.is-shown {
+  opacity: 1;
+}
+.vw-layer img.is-plate-draw,
+.fl-plane > img.is-plate-draw {
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 82%, transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: 0% 50%;
+  mask-position: 0% 50%;
+  animation: plateHatch 1.75s cubic-bezier(.4, 0, .45, 1) forwards;
+}
+@keyframes plateHatch {
+  0% {
+    -webkit-mask-size: 0% 130%;
+    mask-size: 0% 130%;
+    opacity: 1;
+  }
+  100% {
+    -webkit-mask-size: 135% 130%;
+    mask-size: 135% 130%;
+    opacity: 1;
+  }
+}
+.vw-layer img.is-plate-drawn,
+.fl-plane > img.is-plate-drawn {
+  -webkit-mask-image: none;
+  mask-image: none;
+  opacity: 1;
+  animation: none;
+  transition: none;
+}
 .vw svg .ink{fill:none;stroke:var(--ink);stroke-linecap:round;stroke-linejoin:round}
 .vw svg .pap{fill:var(--paper);stroke:var(--ink);stroke-linejoin:round}
 
@@ -69,6 +114,12 @@
 @media (prefers-reduced-motion:reduce){
   .vw,.vw-notes,.fl-plane,.fl-post,.ju-loupe{transition:none!important}
   .ju-spot::before{animation:none}
+  .vw-layer img.is-plate-draw,.fl-plane > img.is-plate-draw{
+    animation:none;
+    -webkit-mask-image:none;
+    mask-image:none;
+    opacity:1;
+  }
 }
 .ju-near,.sa-layer,.sa-far,.ar-face,.ar-beyond{pointer-events:none}
 .vw-close:focus:not(:focus-visible){outline:none}

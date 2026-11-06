@@ -282,6 +282,9 @@ function initParallax() {
       el.style.top = top.toFixed(2) + "px";
       el.style.width = width.toFixed(2) + "px";
       el.style.height = height.toFixed(2) + "px";
+      el.style.right = "auto";
+      el.style.bottom = "auto";
+      el.style.objectFit = "fill";
       el.style.transformOrigin = origin;
     });
     state.geo = {
@@ -293,9 +296,7 @@ function initParallax() {
     if (state.sky && !early) sizeSky(state);
   }
 
-  // Wait until every layer of a card has loaded and decoded, then fade out the
-  // flat drawing on top. Until then the layers stay still under it. If any
-  // layer fails, the flat drawing simply stays.
+  // Decode helper: resolves when the image has pixels, rejects on error.
   function whenDecoded(img) {
     const loaded = img.complete && img.naturalWidth > 0
       ? Promise.resolve()
@@ -336,19 +337,102 @@ function initParallax() {
     });
   }
 
-  function watchLayers(state) {
-    Promise.all(state.layers.map(({ el }) => whenDecoded(el)))
-      .then(() => {
-        layout(state);
-        state.ready = true;
+  // v17j-ink2: draw the WHOLE flat poster as one continuous hatch, hold it
+  // while layers decode underneath (fully opaque, no entrance masks), then
+  // fade the poster once every successful layer is ready — silent match.
+  function trySwap(state) {
+    if (state.swapDone) return;
+    if (!state.drawDone) return;
+    // watchLayers must have started (layerTotal is a number) before we swap.
+    if (typeof state.layerTotal !== "number") return;
+    if (state.layerSettled < state.layerTotal) return;
+    state.swapDone = true;
+    if (state.layerOk === 0) {
+      // All layers failed — keep the finished poster forever.
+      state.ready = false;
+      return;
+    }
+    layout(state);
+    // Keep ready false until the poster has faded. Otherwise the rAF loop
+    // (which has already eased toward the pointer during the draw) slams
+    // that offset onto the layers the instant they show — the picture jumps.
+    state.art.classList.add("is-layered");
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
         state.art.classList.add("is-ready");
-        measureScroll();
-        apply(state);
-        startSky();
-      })
-      .catch(() => {
-        state.ready = false;
+        window.setTimeout(() => {
+          state.px = 0;
+          state.py = 0;
+          state.tx = 0;
+          state.ty = 0;
+          state.ready = true;
+          measureScroll();
+          apply(state);
+          startSky();
+        }, 420);
       });
+    });
+  }
+
+  function startPosterDraw(state) {
+    state.drawDone = false;
+    state.swapDone = false;
+    const poster = state.poster;
+    const finishDraw = () => {
+      if (state.drawDone) return;
+      state.drawDone = true;
+      state.art.classList.add("is-inked");
+      state.art.classList.remove("is-inking");
+      trySwap(state);
+    };
+    if (!poster) {
+      finishDraw();
+      return;
+    }
+    whenDecoded(poster)
+      .then(() => {
+        if (reducedMotion.matches) {
+          state.art.classList.add("is-inking", "is-inked");
+          finishDraw();
+          return;
+        }
+        state.art.classList.add("is-inking");
+        const onEnd = (ev) => {
+          // Ignore foreign / aborted ends; require a real hatch duration.
+          if (!ev || String(ev.animationName) !== "posterHatch") return;
+          if (ev.elapsedTime < 1.2) return;
+          poster.removeEventListener("animationend", onEnd);
+          finishDraw();
+        };
+        poster.addEventListener("animationend", onEnd);
+        window.setTimeout(finishDraw, 2400);
+      })
+      .catch(finishDraw);
+  }
+
+  // Track layer decode only (no per-layer entrance). Hero layers stay deferred
+  // until after the poster has painted so LCP is not raced.
+  function watchLayers(state) {
+    const n = state.layers.length;
+    state.layerTotal = n;
+    state.layerSettled = 0;
+    state.layerOk = 0;
+    if (!n) {
+      trySwap(state);
+      return;
+    }
+    state.layers.forEach(({ el }) => {
+      whenDecoded(el)
+        .then(() => {
+          state.layerOk += 1;
+          state.layerSettled += 1;
+          trySwap(state);
+        })
+        .catch(() => {
+          state.layerSettled += 1;
+          trySwap(state);
+        });
+    });
   }
 
   function afterPoster(state, start) {
@@ -376,6 +460,7 @@ function initParallax() {
   }
 
   states.forEach((state) => {
+    startPosterDraw(state);
     const deferred = state.layers.some(
       ({ el }) => el.dataset.src || el.dataset.srcset
     );

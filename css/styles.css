@@ -213,20 +213,66 @@ a {
   display: block;
 }
 
-/* The flat drawing covers the layers until every layer has decoded, so a
-   slow or failed layer can never leave a half-drawn picture. */
+/* v17j-ink3: one continuous reveal of the flat poster. The wipe's trailing
+   side is solid ink so the drawing cannot thin back to paper. Layers are
+   shown under the finished poster before it fades — no white flash. */
 .art .poster {
   z-index: 1;
   transform: none;
-  transition: opacity 0.45s ease;
+  opacity: 0;
+  transition: none;
+}
+
+/* Unveil in place: a soft left-to-right front. Mask height stays constant
+   and the left edge is pinned, so the drawing never slides as it appears. */
+.art.is-inking .poster {
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 82%, transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: 0% 50%;
+  mask-position: 0% 50%;
+  animation: posterHatch 1.9s cubic-bezier(0.4, 0, 0.45, 1) forwards;
+}
+
+@keyframes posterHatch {
+  0% {
+    -webkit-mask-size: 0% 130%;
+    mask-size: 0% 130%;
+    opacity: 1;
+  }
+  100% {
+    -webkit-mask-size: 135% 130%;
+    mask-size: 135% 130%;
+    opacity: 1;
+  }
+}
+
+/* Hold the finished flat drawing. No opacity transition here, or clearing
+   the animation would fade the poster back to its default 0 (a white flash). */
+.art.is-inked .poster {
+  -webkit-mask-image: none;
+  mask-image: none;
+  opacity: 1;
+  animation: none;
+  transition: none;
+}
+
+.art .layer {
+  opacity: 0;
+}
+
+/* Layers paint under the poster first (.is-layered), then the poster fades. */
+.art.is-layered .layer,
+.art.is-ready .layer {
+  opacity: 1;
+  will-change: transform;
 }
 
 .art.is-ready .poster {
   opacity: 0;
-}
-
-.art.is-ready .layer {
-  will-change: transform;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
 }
 
 .nav {
@@ -874,6 +920,17 @@ a {
 
   .art .layer {
     transform: none !important;
+  }
+
+  .art.is-inking .poster {
+    animation: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+    opacity: 1;
+  }
+
+  .art .poster {
+    transition: opacity 0.35s ease;
   }
 
   .caret,

@@ -3,7 +3,7 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=17g";
+  const V = "?v=17j-ink5";
   const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
@@ -121,6 +121,122 @@
     rest.forEach((im) => applyPlate(im, { priority: "low" }));
     return [];
   }
+
+  function whenDecoded(img) {
+    const loaded = img.complete && img.naturalWidth > 0
+      ? Promise.resolve()
+      : new Promise((resolve, reject) => {
+          img.addEventListener("load", resolve, { once: true });
+          img.addEventListener("error", reject, { once: true });
+        });
+    return loaded.then(() =>
+      typeof img.decode === "function"
+        ? img.decode().catch(() => {
+            if (!img.naturalWidth) throw new Error("plate did not decode");
+          })
+        : undefined
+    );
+  }
+
+  /* v17j-ink5: ONE hatch of the primary plate; secondaries stay hidden until
+     decoded + primary drawn, then a quiet opacity fade (no per-plate hatch). */
+  function inkScene(sc) {
+    const imgs = [...sc.querySelectorAll(".vw-layer img, .fl-plane > img")];
+    const pri = (im) => +(im.dataset.pri || 9);
+    const primary = imgs.filter((im) => pri(im) <= 1);
+    const secondary = imgs.filter((im) => pri(im) > 1);
+    let primaryDrawn = false;
+    const pendingShow = [];
+
+    const showSecondary = (im) => {
+      im.classList.add("is-shown");
+    };
+
+    const maybeShowSecondaries = () => {
+      if (!primaryDrawn) return;
+      pendingShow.splice(0).forEach(showSecondary);
+      secondary.forEach((im) => {
+        if (im.naturalWidth > 0 && !im.classList.contains("is-shown")) {
+          showSecondary(im);
+        }
+      });
+    };
+
+    imgs.forEach((im) => {
+      im.classList.remove(
+        "is-ink",
+        "is-ink-done",
+        "is-plate-draw",
+        "is-plate-drawn",
+        "is-plate-primary",
+        "is-plate-secondary",
+        "is-shown"
+      );
+    });
+    primary.forEach((im) => im.classList.add("is-plate-primary"));
+    secondary.forEach((im) => im.classList.add("is-plate-secondary"));
+
+    const waitArmed = (im, fn) => {
+      if (im.dataset.src && !im.getAttribute("src")) {
+        const poll = () => {
+          if (im.getAttribute("src") || !im.dataset.src) fn();
+          else setTimeout(poll, 40);
+        };
+        poll();
+      } else fn();
+    };
+
+    primary.forEach((im) => {
+      waitArmed(im, () => {
+        whenDecoded(im)
+          .then(() => {
+            if (RM.matches) {
+              im.classList.add("is-plate-drawn");
+              primaryDrawn = true;
+              maybeShowSecondaries();
+              return;
+            }
+            im.classList.add("is-plate-draw");
+            const done = (ev) => {
+              if (
+                ev &&
+                ev.animationName &&
+                String(ev.animationName).indexOf("plateHatch") === -1
+              ) {
+                return;
+              }
+              im.removeEventListener("animationend", done);
+              im.classList.add("is-plate-drawn");
+              im.classList.remove("is-plate-draw");
+              primaryDrawn = true;
+              maybeShowSecondaries();
+            };
+            im.addEventListener("animationend", done);
+            setTimeout(done, 2200);
+          })
+          .catch(() => {
+            primaryDrawn = true;
+            maybeShowSecondaries();
+          });
+      });
+    });
+
+    if (!primary.length) {
+      primaryDrawn = true;
+    }
+
+    secondary.forEach((im) => {
+      waitArmed(im, () => {
+        whenDecoded(im)
+          .then(() => {
+            if (primaryDrawn) showSecondary(im);
+            else pendingShow.push(im);
+          })
+          .catch(() => {});
+      });
+    });
+  }
+
   function fitPortrait() {
     const port = innerWidth < innerHeight;
     dlg.classList.toggle("is-port", port);
@@ -152,6 +268,8 @@
       if (typeof requestIdleCallback === "function") requestIdleCallback(kick, { timeout: 220 });
       else setTimeout(kick, 48);
     }
+    const onScene = dlg.querySelector(".vw-scene.is-on");
+    if (onScene) inkScene(onScene);
     $("#vw-count").textContent = `${["i", "ii", "iii", "iv"][ORDER.indexOf(k)]} / iv`;
     $("#vw-title").textContent = notes[k].title;
     $("#vw-body").textContent = notes[k].body;
