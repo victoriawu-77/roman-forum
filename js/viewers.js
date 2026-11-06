@@ -3,7 +3,7 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=17f";
+  const V = "?v=17g";
   const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
@@ -28,32 +28,39 @@
   ];
 
   /* ---------- markup ---------- */
+  /* Responsive plates: same art as 3840 masters, 1280/1920 for phone + typical desktop.
+     Progressive: primary plate paints first; far/secondary layers hydrate after. */
+  const plate = (base, w = 3840, h = 2160, sizes = "100vw") => {
+    const stem = `assets/viewers/${base}`;
+    /* src fallback = 1280 so WebKit does not also fetch a competing 1920 default */
+    return `data-src="${stem}-1280.webp${V}" data-srcset="${stem}-1280.webp${V} 1280w, ${stem}-1920.webp${V} 1920w, ${stem}.webp${V} ${w}w" data-sizes="${sizes}" width="${w}" height="${h}" decoding="async" alt=""`;
+  };
   const dlg = document.createElement("dialog");
   dlg.className = "vw";
   dlg.setAttribute("aria-labelledby", "vw-title");
   dlg.innerHTML = `
     <div class="vw-stage" id="vw-stage">
       <div class="vw-scene" data-s="floor"><div class="fl-wrap"><div class="fl-plane is-live">
-        <img data-src="assets/viewers/floor-plan.webp${V}" alt="">
+        <img ${plate("floor-plan", 3072, 2304, "min(86vw, 112vh)")} data-pri="1">
         ${[["arch", 13, 29, "Arch"], ["saturn", 18, 53, "Temple of Saturn"], ["floor", 56, 52, "The square"], ["julia", 47, 80, "Basilica Julia"]]
           .map(([k, x, y, l]) => `<div class="fl-pin" style="left:${x}%;top:${y}%"><div class="fl-post"><button type="button" data-go="${k}">${l}</button></div></div>`).join("")}
       </div></div></div>
       <div class="vw-scene" data-s="saturn">
-        <div class="vw-layer sa-far" data-d="0.12"><img data-src="assets/viewers/saturn-far.webp${V}" alt=""></div>
-        <div class="vw-layer sa-layer sa-mid" data-d="0.4"><img data-src="assets/viewers/saturn-mid.webp${V}" alt=""></div>
-        <div class="vw-layer sa-layer sa-near" data-d="1"><img data-src="assets/viewers/saturn-near.webp${V}" data-src-port="assets/viewers/saturn-near-port.webp${V}" alt=""></div>
+        <div class="vw-layer sa-far" data-d="0.12"><img ${plate("saturn-far")} data-pri="3"></div>
+        <div class="vw-layer sa-layer sa-mid" data-d="0.4"><img ${plate("saturn-mid")} data-pri="2"></div>
+        <div class="vw-layer sa-layer sa-near" data-d="1"><img ${plate("saturn-near")} data-src-port="assets/viewers/saturn-near-port-1280.webp${V}" data-srcset-port="assets/viewers/saturn-near-port-1280.webp${V} 1280w, assets/viewers/saturn-near-port-1920.webp${V} 1920w, assets/viewers/saturn-near-port.webp${V} 3840w" data-pri="1"></div>
       </div>
       <div class="vw-scene" data-s="arch">
         <div class="ar-dolly">
-          <div class="vw-layer ar-beyond"><img data-src="assets/viewers/arch-beyond.webp${V}" alt=""></div>
-          <div class="vw-layer ar-face"><img data-src="assets/viewers/arch-face.webp${V}" alt=""></div>
+          <div class="vw-layer ar-beyond"><img ${plate("arch-beyond")} data-pri="2"></div>
+          <div class="vw-layer ar-face"><img ${plate("arch-face")} data-pri="1"></div>
         </div>
       </div>
       <div class="vw-scene" data-s="julia">
-        <div class="vw-layer ju-track"><img data-src="assets/viewers/julia-pano.webp${V}" alt="">
+        <div class="vw-layer ju-track"><img ${plate("julia-pano")} data-pri="1">
           ${BOARDS.map((b, i) => `<button type="button" class="ju-spot" data-board="${i}" style="left:${b.x}%;top:${b.y}%" aria-label="Game board ${i + 1}"></button>`).join("")}
         </div>
-        <div class="vw-layer ju-near"><img data-src="assets/viewers/julia-near.webp${V}" alt=""></div>
+        <div class="vw-layer ju-near"><img ${plate("julia-near", 3840, 1010)} data-pri="2"></div>
         <div class="ju-loupe" role="dialog" aria-label="Game board"><button type="button" data-loupe-close>Back</button><svg viewBox="0 0 200 200"></svg><p></p></div>
       </div>
     </div>
@@ -74,13 +81,57 @@
   /* portrait frames are taller than the 16:9 near plate: swap in the plate with
      extended foreground (same top 2160 rows + inked ground below) so the nearest
      layer always reaches past the stage bottom, incl. parallax travel */
-  const pick = (im) => (dlg.classList.contains("is-port") && im.dataset.srcPort) || im.dataset.srcLand || im.dataset.src;
+  const pickSrc = (im) => {
+    const port = dlg.classList.contains("is-port") && im.dataset.srcPort;
+    return port || im.dataset.srcLand || im.dataset.src;
+  };
+  const pickSrcset = (im) => {
+    const port = dlg.classList.contains("is-port") && im.dataset.srcsetPort;
+    return port || im.dataset.srcsetLand || im.dataset.srcset || "";
+  };
+  function applyPlate(im, { priority } = {}) {
+    const src = pickSrc(im);
+    const srcset = pickSrcset(im);
+    const sizes = im.dataset.sizes || "100vw";
+    if (!src && !srcset) return;
+    im.sizes = sizes;
+    if (srcset) {
+      im.srcset = srcset;
+      /* Keep src equal to the first (smallest) candidate so WebKit does not
+         download a larger default src in parallel with the srcset choice. */
+      const fallback = srcset.split(",")[0].trim().split(/\s+/)[0];
+      if (im.getAttribute("src") !== fallback) im.src = fallback;
+    } else {
+      im.removeAttribute("srcset");
+      if (im.getAttribute("src") !== src) im.src = src;
+    }
+    im.decoding = "async";
+    if (priority) im.fetchPriority = priority;
+    im.removeAttribute("data-src");
+  }
+  function hydrateScene(sc, { primaryOnly = false } = {}) {
+    const imgs = [...sc.querySelectorAll("img[data-src], img[src]")];
+    const pending = imgs.filter((im) => im.dataset.src);
+    const pri = (im) => +(im.dataset.pri || 9);
+    pending.sort((a, b) => pri(a) - pri(b));
+    const first = pending.filter((im) => pri(im) <= 1);
+    const rest = pending.filter((im) => pri(im) > 1);
+    first.forEach((im) => applyPlate(im, { priority: "high" }));
+    if (primaryOnly) return rest;
+    rest.forEach((im) => applyPlate(im, { priority: "low" }));
+    return [];
+  }
   function fitPortrait() {
     const port = innerWidth < innerHeight;
     dlg.classList.toggle("is-port", port);
     dlg.querySelectorAll("img[data-src-port]").forEach((im) => {
       if (!im.dataset.srcLand) im.dataset.srcLand = im.dataset.src || im.getAttribute("src");
-      if (im.getAttribute("src")) { const u = pick(im); if (im.getAttribute("src") !== u) im.src = u; }
+      if (!im.dataset.srcsetLand && im.dataset.srcset) im.dataset.srcsetLand = im.dataset.srcset;
+      if (im.getAttribute("src")) {
+        const u = pickSrc(im), ss = pickSrcset(im);
+        if (im.getAttribute("src") !== u) im.src = u;
+        if (ss) im.srcset = ss;
+      }
     });
   }
   addEventListener("resize", fitPortrait);
@@ -88,11 +139,19 @@
     fitPortrait();
     cur = k;
     dlg.dataset.k = k;
+    let deferred = [];
     dlg.querySelectorAll(".vw-scene").forEach((s) => {
       const on = s.dataset.s === k;
       s.classList.toggle("is-on", on);
-      if (on) s.querySelectorAll("img[data-src]").forEach((im) => { im.src = pick(im); im.removeAttribute("data-src"); });
+      if (on) deferred = hydrateScene(s, { primaryOnly: true });
     });
+    /* paint primary plate first; hydrate far layers on the next frames so one
+       open does not contend all 3840s on the network at once */
+    if (deferred.length) {
+      const kick = () => deferred.forEach((im) => applyPlate(im, { priority: "low" }));
+      if (typeof requestIdleCallback === "function") requestIdleCallback(kick, { timeout: 220 });
+      else setTimeout(kick, 48);
+    }
     $("#vw-count").textContent = `${["i", "ii", "iii", "iv"][ORDER.indexOf(k)]} / iv`;
     $("#vw-title").textContent = notes[k].title;
     $("#vw-body").textContent = notes[k].body;
@@ -106,6 +165,7 @@
     if (!dlg.open) { dlg.showModal(); requestAnimationFrame(() => dlg.classList.add("is-in")); }
     cancelAnimationFrame(raf); raf = requestAnimationFrame(tick);
   }
+
   function close() { dlg.classList.remove("is-in"); setTimeout(() => dlg.open && dlg.close(), RM.matches ? 0 : 300); }
   dlg.addEventListener("close", () => { dlg.classList.remove("is-in"); cancelAnimationFrame(raf); cur = null; });
   dlg.addEventListener("cancel", (e) => { e.preventDefault(); if ($(".ju-loupe.is-on")) return $(".ju-loupe").classList.remove("is-on"); close(); });
@@ -257,5 +317,24 @@
     if (typeof closeMenus === "function") closeMenus();
     open(b.dataset.note);
   }, true);
+  /* Warm the first midband plate once the list nears the viewport so the
+     common first tap is not a cold 3840 fetch. */
+  (function warmFloor() {
+    const target = document.querySelector('.midband2, [data-note="floor"]');
+    if (!target || !("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.type = "image/webp";
+      link.href = `assets/viewers/floor-plan-1280.webp${V}`;
+      link.imageSrcset = `assets/viewers/floor-plan-1280.webp${V} 1280w, assets/viewers/floor-plan-1920.webp${V} 1920w, assets/viewers/floor-plan.webp${V} 3072w`;
+      link.imageSizes = "min(86vw, 112vh)";
+      document.head.appendChild(link);
+    }, { rootMargin: "200px 0px" });
+    io.observe(target);
+  })();
   window.__viewers = { open, state: st };
 })();
