@@ -790,11 +790,14 @@ function initParallax() {
         { sy: 196, len: 300, gap: 3, lines: 6, speed: 3.2, depth: 0.04, off: 0.66, alpha: 0.18 }
       ].map((m) => Object.assign({ wave: rand() * 10, x: null }, m));
     } else {
-      // Two birds of prey riding a thermal over the valley at Delphi: wide,
-      // slow circles seen from the side, climbing and drifting.
+      // Two birds of prey riding a thermal over the valley at Delphi.
+      // Positions are in the 3840×2558 source (the older 1246-wide numbers
+      // × 3840/1246), so the pair circles in the open cream sky above the
+      // valley instead of a sliver at the top-left corner.
+      const HD = 3840 / 1246;
       state.birds = [
-        { cx: 250, cy: 252, r: 110, period: 34, span: 28, depth: 0.24, a: 0.5, climb: 96 },
-        { cx: 290, cy: 272, r: 74, period: 27, span: 21, depth: 0.16, a: 3.6, climb: 74 }
+        { cx: 250 * HD, cy: 252 * HD, r: 110 * HD, period: 34, span: 28, depth: 0.24, a: 0.5, climb: 96 * HD, wander: 40 * HD, liftAmp: 22 * HD },
+        { cx: 290 * HD, cy: 272 * HD, r: 74 * HD, period: 27, span: 21, depth: 0.16, a: 3.6, climb: 74 * HD, wander: 40 * HD, liftAmp: 22 * HD }
       ].map((b) =>
         Object.assign(makeWings(b.span), b, { amt: 0, glide: 3 + rand() * 6, lift: 0, roll: 0 })
       );
@@ -927,8 +930,8 @@ function initParallax() {
       b.a += (dt / b.period) * Math.PI * 2;
       // The thermal drifts; the birds climb in it and slowly sink out again.
       b.t = (b.t || 0) + dt;
-      b.lift = 22 * Math.sin((b.t / b.climb) * Math.PI * 2 + b.period);
-      b.cxNow = b.cx + Math.sin(skyClock * 0.02 + b.period) * 40;
+      b.lift = (b.liftAmp || 22) * Math.sin((b.t / b.climb) * Math.PI * 2 + b.period);
+      b.cxNow = b.cx + Math.sin(skyClock * 0.02 + b.period) * (b.wander || 40);
       const sx = b.cxNow + Math.cos(b.a) * b.r;
       const sy = b.cy - b.lift + Math.sin(b.a) * b.r * 0.22;
       // Nearer half of the circle reads a little larger.
@@ -1088,10 +1091,11 @@ function initParallax() {
     // Bird CSS size follows plate zoom (g.s). When a tall hero crops the
     // plate to a narrow visible width, ease that down a little so gulls stay
     // a steady share of the *visible* scene — continuous in visW, no 600px cliff.
-    // Hero BOOST 3.0 (16d): live 1.75 still read as specks. Delphi keeps 1.75 so the pair feels unchanged.
+    // Hero BOOST 3.0 (16d). Delphi 17h: same 3.0, plus a pixel floor so the
+    // pair stays readable on a narrow phone plate (width-locked aspect).
     const visW = g.cw / Math.max(g.s, 1e-6);
     const crop = clamp(0.84 + 0.18 * ((visW - 900) / 2300), 0.84, 1.02);
-    const BOOST = state.mode === "hero" ? 3.0 : 1.75;
+    const BOOST = 3.0;
     const plateScale = g.s * crop * BOOST;
     const ordered = state.birds.slice().sort((a, b) => a.depth - b.depth);
     ordered.forEach((b) => {
@@ -1099,9 +1103,10 @@ function initParallax() {
       const near = soar ? 1 + 0.08 * b.near : 1;
       const p = place(b.x, b.y, b.depth);
       // Farther birds are paler, as the far city is paler than the temple.
-      const alpha = 0.32 + b.depth * 1.0;
-      // Soft floor keeps a mark readable without flattening the flock sizes.
-      drawBird(ctx, p.x, p.y, Math.max(6, b.span * plateScale * p.k * near), b, alpha, soar);
+      const alpha = (soar ? 0.48 : 0.32) + b.depth * 1.0;
+      // Soft floor: hero 6px; Delphi 24px so raptors do not shrink to specks.
+      const floor = soar ? 24 : 6;
+      drawBird(ctx, p.x, p.y, Math.max(floor, b.span * plateScale * p.k * near), b, alpha, soar);
     });
   }
 
@@ -1263,7 +1268,7 @@ function initParallax() {
       const g = st.geo;
       const visW = g.cw / Math.max(g.s, 1e-6);
       const crop = clamp(0.84 + 0.18 * ((visW - 900) / 2300), 0.84, 1.02);
-      const BOOST = mode === "hero" ? 3.0 : 1.75;
+      const BOOST = 3.0;
       return { s: g.s, visW, crop, boost: BOOST, plateScale: g.s * crop * BOOST, cw: g.cw, ch: g.ch };
     }
   };
