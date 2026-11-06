@@ -46,10 +46,10 @@
 .sa-far{inset:-22%}
 
 /* iii. arch — walk through at locked eye-height (origin = horizon / VP).
-   .ar-dolly carries the walk scale (one camera). Face + beyond share the same box
-   so 50% 64% is one point; beyond's rest scale(1.1) stays inside the dolly. */
+   .ar-dolly is a layout wrapper; face + beyond scale independently around 50% 64%
+   (near gate faster than far plaza). Sill contact is pinned in JS. */
 .ar-dolly{position:absolute;inset:0;transform-origin:50% 64%;will-change:transform}
-.ar-beyond,.ar-face{inset:-6%;transform-origin:50% 64%}
+.ar-beyond,.ar-face{inset:-6%;transform-origin:50% 64%;will-change:transform,opacity}
 .ar-beyond img{object-fit:cover}
 
 /* iv. julia — dolly */

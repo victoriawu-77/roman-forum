@@ -3,7 +3,7 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=17d";
+  const V = "?v=17e";
   const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
@@ -132,22 +132,25 @@
       st.p = lerp(st.p, st.tp, k);
       const p = st.p, face = sc.querySelector(".ar-face"), beyond = sc.querySelector(".ar-beyond");
       const dolly = sc.querySelector(".ar-dolly");
-      /* v17d: ONE camera. Walk scale lives on .ar-dolly so face + beyond zoom together
-         around the shared eye-height VP — frame, threshold, pavement and scene stay locked.
-         Beyond keeps a static rest framing (scale 1.1 + foot pin) inside the dolly; that
-         collage relationship is frozen and only the camera moves. Prior v17b scaled the
-         two layers on divergent curves, so archFootNy could pin one Y-row while the door
-         frame and ground still slid/peeled during the walk. */
-      const S = 3.5;                                // max dolly scale at p=1
-      const scale = 1 / (1 - p * (1 - 1 / S));     // perspective z/(z−d)
-      dolly.style.transform = `scale(${scale})`;
-      face.style.transform = "none";
+      /* v17e: two-depth camera walk. Face (gate plane) and beyond (far plaza) sit at
+         different Z and scale around the shared eye-height VP (CSS 50% 64%).
+         Near grows faster than far → real approach, not a flat collage zoom (v17d).
+         Threshold contact (portal sill ≈ plate v=0.912) is pinned with translateY so
+         the baked face doorway / column feet stay on the road that meets them.
+         .ar-dolly is a layout wrapper only (no walk scale). */
+      dolly.style.transform = "none";
+      const ZF = 1.0, ZB = 2.45, dMax = 0.68;     // face ~1→3.125, beyond slower
+      const B0 = 1.1;                               // rest framing of beyond
+      const d = p * dMax;
+      const faceScale = 1 / (1 - d / ZF);
+      const beyondScale = B0 / (1 - d / ZB);
+      face.style.transform = `scale(${faceScale})`;
       face.style.opacity = String(clamp(1 - (p - 0.72) / 0.22, 0, 1));
-      /* Rest framing pin (beyond 1.1 vs face 1): independent of dolly scale. */
-      const origin = 0.64, footNy = archFootNy(face);
-      const B0 = 1.1;
-      const dyPct = ((origin + (footNy - origin) * 1) - (origin + (footNy - origin) * B0)) * 100;
-      beyond.style.transform = `translateY(${dyPct.toFixed(3)}%) scale(${B0})`;
+      const origin = 0.64, sillNy = archPlateNy(face, 0.912);
+      const faceSill = origin + (sillNy - origin) * faceScale;
+      const beyondSill = origin + (sillNy - origin) * beyondScale;
+      const dyPct = (faceSill - beyondSill) * 100;
+      beyond.style.transform = `translateY(${dyPct.toFixed(3)}%) scale(${beyondScale})`;
       meter.style.transform = `scaleX(${p})`;
     } else if (cur === "julia") {
       st.p = lerp(st.p, st.tp, k);
@@ -161,25 +164,26 @@
     raf = requestAnimationFrame(tick);
   }
 
-  /* foot row of arch-face in its layer box (0..1), from live layout; cached per size */
-  let footCache = null;
-  function archFootNy(face) {
+  /* plate row → layer-box ny (0..1) for arch-face; cached per size + plateV.
+     Used to pin the portal sill (≈0.912) so threshold stays on the road. */
+  let plateNyCache = {};
+  function archPlateNy(face, plateV) {
     const im = face.querySelector("img"), W = face.offsetWidth, H = face.offsetHeight;
-    const key = W + "x" + H + dlg.className;
-    if (footCache && footCache.key === key) return footCache.v;
+    const key = W + "x" + H + dlg.className + "@" + plateV;
+    if (plateNyCache[key] != null) return plateNyCache[key];
     const cs = getComputedStyle(im), a = 16 / 9;
     const iw = im.offsetWidth, ih = im.offsetHeight;
     const rw = Math.min(iw, ih * a), rh = rw / a;
     const py = (cs.objectPosition.split(" ")[1] || "50%");
     const top = py.endsWith("%") ? (ih - rh) * parseFloat(py) / 100 : parseFloat(py);
-    let y = top + 0.955 * rh;                                   // in img box
+    let y = top + plateV * rh;                                   // in img box
     const m = cs.transform && cs.transform !== "none" ? new DOMMatrix(cs.transform) : null;
     if (m) { const oy = parseFloat(cs.transformOrigin.split(" ")[1]) || ih / 2; y = oy + (y - oy) * m.d + m.f; }
     const v = (im.offsetTop + y) / H;
-    footCache = { key, v };
+    plateNyCache[key] = v;
     return v;
   }
-  addEventListener("resize", () => { footCache = null; });
+  addEventListener("resize", () => { plateNyCache = {}; });
 
   /* ---------- input ---------- */
   let drag = null;
