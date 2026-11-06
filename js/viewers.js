@@ -3,7 +3,7 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=17e";
+  const V = "?v=17f";
   const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
@@ -132,21 +132,23 @@
       st.p = lerp(st.p, st.tp, k);
       const p = st.p, face = sc.querySelector(".ar-face"), beyond = sc.querySelector(".ar-beyond");
       const dolly = sc.querySelector(".ar-dolly");
-      /* v17e: two-depth camera walk. Face (gate plane) and beyond (far plaza) sit at
-         different Z and scale around the shared eye-height VP (CSS 50% 64%).
-         Near grows faster than far → real approach, not a flat collage zoom (v17d).
-         Threshold contact (portal sill ≈ plate v=0.912) is pinned with translateY so
-         the baked face doorway / column feet stay on the road that meets them.
-         .ar-dolly is a layout wrapper only (no walk scale). */
+      /* v17f: same two-depth walk as v17e (near gate faster than far plaza around
+         eye-height VP 50% 64%), plus rest framing so the doorway sill (plate
+         v≈0.912) sits on the stage bottom — no wide cobble band under the arch
+         for the beyond-road to slide against. Sf scales both planes together
+         around the VP; sill contact is still pinned with translateY. */
       dolly.style.transform = "none";
-      const ZF = 1.0, ZB = 2.45, dMax = 0.68;     // face ~1→3.125, beyond slower
-      const B0 = 1.1;                               // rest framing of beyond
+      const ZF = 1.0, ZB = 2.45, dMax = 0.68;
+      const B0 = 1.1;
+      const origin = 0.64, SILL_V = 0.912;
+      const sillNy = archPlateNy(face, SILL_V);
+      const botNy = archStageBotNy(face);
+      const Sf = clamp((botNy - origin) / Math.max(1e-4, sillNy - origin), 1, 2.4);
       const d = p * dMax;
-      const faceScale = 1 / (1 - d / ZF);
-      const beyondScale = B0 / (1 - d / ZB);
+      const faceScale = Sf / (1 - d / ZF);
+      const beyondScale = (B0 * Sf) / (1 - d / ZB);
       face.style.transform = `scale(${faceScale})`;
       face.style.opacity = String(clamp(1 - (p - 0.72) / 0.22, 0, 1));
-      const origin = 0.64, sillNy = archPlateNy(face, 0.912);
       const faceSill = origin + (sillNy - origin) * faceScale;
       const beyondSill = origin + (sillNy - origin) * beyondScale;
       const dyPct = (faceSill - beyondSill) * 100;
@@ -165,15 +167,17 @@
   }
 
   /* plate row → layer-box ny (0..1) for arch-face; cached per size + plateV.
-     Used to pin the portal sill (≈0.912) so threshold stays on the road. */
+     Used to pin the portal sill (≈0.912) so threshold stays on the road.
+     Honours object-fit cover|contain (portrait cover framing in v17f). */
   let plateNyCache = {};
   function archPlateNy(face, plateV) {
     const im = face.querySelector("img"), W = face.offsetWidth, H = face.offsetHeight;
-    const key = W + "x" + H + dlg.className + "@" + plateV;
+    const key = W + "x" + H + dlg.className + "@" + plateV + "@" + (im && getComputedStyle(im).objectFit);
     if (plateNyCache[key] != null) return plateNyCache[key];
     const cs = getComputedStyle(im), a = 16 / 9;
     const iw = im.offsetWidth, ih = im.offsetHeight;
-    const rw = Math.min(iw, ih * a), rh = rw / a;
+    const fit = cs.objectFit || "contain";
+    const rw = fit === "cover" ? Math.max(iw, ih * a) : Math.min(iw, ih * a), rh = rw / a;
     const py = (cs.objectPosition.split(" ")[1] || "50%");
     const top = py.endsWith("%") ? (ih - rh) * parseFloat(py) / 100 : parseFloat(py);
     let y = top + plateV * rh;                                   // in img box
@@ -182,6 +186,13 @@
     const v = (im.offsetTop + y) / H;
     plateNyCache[key] = v;
     return v;
+  }
+  /* stage bottom as ny inside the face layer box (accounts for inset:-6%). */
+  function archStageBotNy(face) {
+    const scene = face.closest(".vw-scene");
+    const H = face.offsetHeight;
+    if (!scene || !H) return 1;
+    return (scene.offsetHeight - face.offsetTop) / H;
   }
   addEventListener("resize", () => { plateNyCache = {}; });
 
