@@ -201,6 +201,7 @@ function initParallax() {
       py: 0,
       tx: 0,
       ty: 0,
+      hand: null,
       scroll: 0,
       ready: false
     };
@@ -436,6 +437,21 @@ function initParallax() {
     return { x, y, scale };
   }
 
+  // Bird (sx, sy) in source pixels → CSS pixels inside the card, matching drawSky.
+  function cardOf(state, sx, sy, depth) {
+    const g = state.geo;
+    if (!g) return { x: 0, y: 0 };
+    const o = reducedMotion.matches ? { x: 0, y: 0, scale: 1 } : offsetAt(state, depth);
+    const x = g.ox + sx * g.s;
+    const y = g.oy + sy * g.s;
+    const cx = g.bw / 2;
+    const cy = g.bh / 2;
+    return {
+      x: cx + (x - cx) * o.scale + o.x,
+      y: cy + (y - cy) * o.scale + o.y
+    };
+  }
+
   function apply(state) {
     if (!state.ready) return;
     state.layers.forEach(({ el, depth }) => {
@@ -504,11 +520,16 @@ function initParallax() {
       const dy = (event.clientY - rect.top) / rect.height - 0.5;
       state.tx = dx * -2 * POINTER_X[state.mode] * rect.width;
       state.ty = dy * -2 * POINTER_Y[state.mode] * rect.height;
+      state.hand = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
       kick();
     });
     state.card.addEventListener("pointerleave", () => {
       state.tx = 0;
       state.ty = 0;
+      state.hand = null;
       kick();
     });
   });
@@ -897,13 +918,29 @@ function initParallax() {
       // Stay in the open sky: below the menu, above the roofs and the title.
       if (b.y < 94) ay += (94 - b.y) * 0.5;
       if (b.y > 188) ay -= (b.y - 188) * 0.5;
+      // 17i: shy away from the pointer — bank off and dart a little.
+      let scare = 0;
+      if (state.hand && state.geo) {
+        const p = cardOf(state, b.x, b.y, b.depth);
+        const dx = p.x - state.hand.x;
+        const dy = p.y - state.hand.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const R = 140;
+        if (d < R) {
+          scare = 1 - d / R;
+          const push = 260 * scare * scare;
+          ax += (dx / d) * push;
+          ay += (dy / d) * push;
+          b.mix = Math.max(b.mix || 0, 0.45 + 0.55 * scare);
+        }
+      }
       const ovx = b.vx;
       const ovy = b.vy;
       b.vx += ax * dt;
       b.vy += ay * dt;
       const sp = Math.hypot(b.vx, b.vy);
       const lo = f.speed * 0.7;
-      const hi = f.speed * 1.35;
+      const hi = f.speed * (scare > 0.15 ? 2.3 : 1.35);
       if (sp < lo || sp > hi) {
         const k = clamp(sp, lo, hi) / sp;
         b.vx *= k;
@@ -932,10 +969,36 @@ function initParallax() {
       b.t = (b.t || 0) + dt;
       b.lift = (b.liftAmp || 22) * Math.sin((b.t / b.climb) * Math.PI * 2 + b.period);
       b.cxNow = b.cx + Math.sin(skyClock * 0.02 + b.period) * (b.wander || 40);
-      const sx = b.cxNow + Math.cos(b.a) * b.r;
-      const sy = b.cy - b.lift + Math.sin(b.a) * b.r * 0.22;
+      let sx = b.cxNow + Math.cos(b.a) * b.r;
+      let sy = b.cy - b.lift + Math.sin(b.a) * b.r * 0.22;
       // Nearer half of the circle reads a little larger.
       b.near = Math.sin(b.a);
+      // 17i: glide off the pointer, then ease back onto the thermal.
+      if (b.fleeX === undefined) {
+        b.fleeX = 0;
+        b.fleeY = 0;
+      }
+      let wantX = 0;
+      let wantY = 0;
+      if (state.hand && state.geo) {
+        const p = cardOf(state, sx + b.fleeX, sy + b.fleeY, b.depth);
+        const dx = p.x - state.hand.x;
+        const dy = p.y - state.hand.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const R = 150;
+        if (d < R) {
+          const k = 1 - d / R;
+          const push = (110 / Math.max(state.geo.s, 1e-6)) * k * k;
+          wantX = (dx / d) * push;
+          wantY = (dy / d) * push;
+          b.mix = Math.max(b.mix || 0, 0.5 + 0.5 * k);
+        }
+      }
+      const ease = Math.min(1, dt * 7);
+      b.fleeX += (wantX - b.fleeX) * ease;
+      b.fleeY += (wantY - b.fleeY) * ease;
+      sx += b.fleeX;
+      sy += b.fleeY;
       b.x = sx;
       b.y = sy;
       const vx = -Math.sin(b.a);
@@ -943,6 +1006,7 @@ function initParallax() {
       // Banked into the circle all the way round: the wing on the inside of
       // the turn dips, and the bank is seen most side-on at the ends.
       b.roll = 0.55 * Math.cos(b.a) * -b.dirNow;
+      if (wantX || wantY) b.roll = clamp(b.roll + wantX * 0.0012, -0.75, 0.75);
       b.heading = Math.atan2(Math.cos(b.a) * 0.22, Math.abs(vx) + 0.3) * 0.6;
       stepWings(b, dt, 5, 11, 2);
     });
