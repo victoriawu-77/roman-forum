@@ -3,7 +3,7 @@
 (() => {
   const ORDER = ["floor", "saturn", "arch", "julia"];
   const RM = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const V = "?v=17b";
+  const V = "?v=17d";
   const TOUCH = matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
   const HINT = {
     floor: "Drag to turn the plan. Tap a marker to go there.",
@@ -44,8 +44,10 @@
         <div class="vw-layer sa-layer sa-near" data-d="1"><img data-src="assets/viewers/saturn-near.webp${V}" data-src-port="assets/viewers/saturn-near-port.webp${V}" alt=""></div>
       </div>
       <div class="vw-scene" data-s="arch">
-        <div class="vw-layer ar-beyond"><img data-src="assets/viewers/arch-beyond.webp${V}" alt=""></div>
-        <div class="vw-layer ar-face"><img data-src="assets/viewers/arch-face.webp${V}" alt=""></div>
+        <div class="ar-dolly">
+          <div class="vw-layer ar-beyond"><img data-src="assets/viewers/arch-beyond.webp${V}" alt=""></div>
+          <div class="vw-layer ar-face"><img data-src="assets/viewers/arch-face.webp${V}" alt=""></div>
+        </div>
       </div>
       <div class="vw-scene" data-s="julia">
         <div class="vw-layer ju-track"><img data-src="assets/viewers/julia-pano.webp${V}" alt="">
@@ -129,27 +131,23 @@
     } else if (cur === "arch") {
       st.p = lerp(st.p, st.tp, k);
       const p = st.p, face = sc.querySelector(".ar-face"), beyond = sc.querySelector(".ar-beyond");
-      /* Dolly forward at locked eye height. CSS transform-origin sits on the horizon /
-         vanishing point (~54%), so scale keeps the road VP fixed — arch base stays low,
-         attic rises out, pillars sweep outward. Not a center-drill zoom. */
-      const faceScale = Math.pow(5.4, p);           // 1 → ~5.4 (pass through; not a 12× center-punch)
-      /* Pure scale around the shared eye-height origin (CSS 50% 64%).
-         Face now bakes doorway threshold with the column feet (same transform).
-         Beyond still approaches more slowly; a tiny translateY keeps the
-         far-road lip from sliding against the baked threshold. */
-      face.style.transform = `scale(${faceScale})`;
-      face.style.opacity = String(clamp(1 - (p - 0.68) / 0.26, 0, 1));
-      const beyondScale = 1.1 + p * 0.85;           // 1.1 → 1.95, approaching
-      /* v17b: the face plate's foot row (0.955 of the 16:9 plate) expressed in
-         LAYER-box coordinates. Desktop: contain fills the box (≈0.955). Portrait
-         (mobile): contain + object-position + inner img scale put the feet much
-         higher (~0.76), so using 0.955 there made frame and ground slide apart. */
+      const dolly = sc.querySelector(".ar-dolly");
+      /* v17d: ONE camera. Walk scale lives on .ar-dolly so face + beyond zoom together
+         around the shared eye-height VP — frame, threshold, pavement and scene stay locked.
+         Beyond keeps a static rest framing (scale 1.1 + foot pin) inside the dolly; that
+         collage relationship is frozen and only the camera moves. Prior v17b scaled the
+         two layers on divergent curves, so archFootNy could pin one Y-row while the door
+         frame and ground still slid/peeled during the walk. */
+      const S = 3.5;                                // max dolly scale at p=1
+      const scale = 1 / (1 - p * (1 - 1 / S));     // perspective z/(z−d)
+      dolly.style.transform = `scale(${scale})`;
+      face.style.transform = "none";
+      face.style.opacity = String(clamp(1 - (p - 0.72) / 0.22, 0, 1));
+      /* Rest framing pin (beyond 1.1 vs face 1): independent of dolly scale. */
       const origin = 0.64, footNy = archFootNy(face);
-      const faceFoot = origin + (footNy - origin) * faceScale;
-      const beyondFoot = origin + (footNy - origin) * beyondScale;
-      /* % of unscaled layer height; applied after scale via transform list order */
-      const dyPct = (faceFoot - beyondFoot) * 100;
-      beyond.style.transform = `translateY(${dyPct.toFixed(3)}%) scale(${beyondScale})`;
+      const B0 = 1.1;
+      const dyPct = ((origin + (footNy - origin) * 1) - (origin + (footNy - origin) * B0)) * 100;
+      beyond.style.transform = `translateY(${dyPct.toFixed(3)}%) scale(${B0})`;
       meter.style.transform = `scaleX(${p})`;
     } else if (cur === "julia") {
       st.p = lerp(st.p, st.tp, k);
